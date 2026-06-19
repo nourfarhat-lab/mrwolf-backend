@@ -5297,6 +5297,17 @@ function importWelcome(input) {
       if (typeof toast === 'function') toast(msg);
       else alert(msg);
 
+      // Sincronizar todo el pipeline importado con Supabase para que el equipo lo vea
+      if (typeof _currentUser !== 'undefined' && _currentUser && typeof syncCompanyToSupabase === 'function') {
+        if (typeof toast === 'function') toast('Sincronizando ' + current.length + ' empresas con el equipo...');
+        (async function() {
+          for (var i = 0; i < current.length; i++) {
+            await syncCompanyToSupabase(current[i]);
+          }
+          if (typeof toast === 'function') toast('✅ Sincronización con el equipo completada');
+        })();
+      }
+
       if (typeof showPage === 'function') showPage('pipeline');
 
     } catch(err) {
