@@ -67,6 +67,34 @@
   margin-top: 10px;
 }
 /* ── TEAM ACTIVITY FEED ── */
+.dash-toggle-btn {
+  padding: 9px 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
+  color: var(--text2);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.dash-toggle-btn:hover { background: rgba(255,255,255,0.06); color: #fff; }
+.dash-toggle-active {
+  background: linear-gradient(135deg, rgba(0,212,160,0.18), rgba(0,153,204,0.12));
+  border-color: rgba(0,212,160,0.4);
+  color: #00D4A0;
+}
+.team-roster-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+}
+.team-roster-name { color: #fff; font-size: 12px; font-weight: 700; }
+.team-roster-count { color: #3A6A85; font-size: 10px; }
+
 .team-feed-item {
   display: flex; align-items: flex-start; gap: 10px;
   padding: 10px 0;
@@ -1095,6 +1123,18 @@ body {
           </div>
         </div>
       </div>
+
+      <!-- DASHBOARD VIEW TOGGLE -->
+      <div style="display:flex;gap:8px;margin-bottom:20px">
+        <button id="dash-toggle-mine" class="dash-toggle-btn dash-toggle-active" onclick="switchDashboardView('mine')">
+          👤 Mi Dashboard
+        </button>
+        <button id="dash-toggle-team" class="dash-toggle-btn" onclick="switchDashboardView('team')">
+          👥 Equipo
+        </button>
+      </div>
+
+      <div id="dashboard-view-mine">
       <!-- KPI CARDS -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px">
         <div class="dash-stat" style="background:linear-gradient(135deg,rgba(0,212,160,0.08),rgba(0,153,204,0.05));border-color:rgba(0,212,160,0.2)">
@@ -1188,6 +1228,36 @@ body {
               <div class="empty-icon">🐺</div>
               <div class="empty-title">Pipeline vacío</div>
               <div class="empty-sub">Analiza empresas para poblar el pipeline</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+      <!-- ═══ TEAM DASHBOARD VIEW ═══ -->
+      <div id="dashboard-view-team" style="display:none">
+        <div class="card" style="margin-bottom:20px">
+          <div style="font-size:12px;color:var(--text3);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px">👥 Miembros del equipo</div>
+          <div id="team-roster" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div class="card" style="margin:0">
+            <div style="font-size:12px;color:var(--text3);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px">🏆 Empresas por persona</div>
+            <div id="team-stats">
+              <div class="empty-state" style="padding:30px 10px">
+                <div class="empty-icon">🐺</div>
+                <div class="empty-title">Sin datos aún</div>
+                <div class="empty-sub">El equipo todavía no ha analizado empresas</div>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="margin:0">
+            <div style="font-size:12px;color:var(--text3);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px">⚡ Actividad del equipo</div>
+            <div id="team-activity-feed" style="max-height:420px;overflow-y:auto">
+              <div class="empty-state" style="padding:30px 10px">
+                <div class="empty-icon">🌊</div>
+                <div class="empty-title">Sin actividad aún</div>
+                <div class="empty-sub">La actividad del equipo aparecerá aquí</div>
+              </div>
             </div>
           </div>
         </div>
@@ -5103,9 +5173,50 @@ async function loadTeamDashboard() {
         '</div>' +
       '</div>';
     }).join('') || '<div style="color:#3A6A85;font-size:12px;padding:16px 0">No activity yet.</div>';
+
+    // Build team roster — every registered user, with live company counts
+    var rosterEl = document.getElementById('team-roster');
+    if (rosterEl) {
+      var { data: users } = await sb.from('users').select('*').order('name', { ascending: true });
+      rosterEl.innerHTML = (users || []).map(function(u) {
+        var initial = (u.name || u.email || '?').charAt(0).toUpperCase();
+        var color = u.avatar_color || '#00D4A0';
+        var count = userCounts[u.name] || 0;
+        var isYou = _currentUser && _currentUser.email === u.email;
+        return '<div class="team-roster-card">' +
+          '<div class="team-avatar" style="background:' + color + ';width:34px;height:34px;font-size:13px">' + initial + '</div>' +
+          '<div>' +
+            '<div class="team-roster-name">' + u.name + (isYou ? ' <span style="color:#00D4A0;font-weight:400">(tú)</span>' : '') + '</div>' +
+            '<div class="team-roster-count">' + count + ' empresas</div>' +
+          '</div>' +
+        '</div>';
+      }).join('') || '<div style="color:#3A6A85;font-size:12px">No se pudo cargar el equipo.</div>';
+    }
     
   } catch(e) {
     console.warn('Team dashboard load failed:', e.message);
+  }
+}
+
+// ── DASHBOARD VIEW TOGGLE ────────────────────
+function switchDashboardView(view) {
+  var mineView = document.getElementById('dashboard-view-mine');
+  var teamView = document.getElementById('dashboard-view-team');
+  var mineBtn = document.getElementById('dash-toggle-mine');
+  var teamBtn = document.getElementById('dash-toggle-team');
+  if (!mineView || !teamView) return;
+
+  if (view === 'team') {
+    mineView.style.display = 'none';
+    teamView.style.display = 'block';
+    mineBtn.classList.remove('dash-toggle-active');
+    teamBtn.classList.add('dash-toggle-active');
+    loadTeamDashboard();
+  } else {
+    mineView.style.display = 'block';
+    teamView.style.display = 'none';
+    teamBtn.classList.remove('dash-toggle-active');
+    mineBtn.classList.add('dash-toggle-active');
   }
 }
 
@@ -5122,6 +5233,116 @@ if (_origRunAnalyze) {
     return _origRunAnalyze.apply(this, arguments);
   };
 }
+
+// Wrap analyzeByURL (analyze by pasted website)
+var _origAnalyzeByURL = typeof analyzeByURL === 'function' ? analyzeByURL : null;
+if (_origAnalyzeByURL) {
+  analyzeByURL = async function() {
+    var urlVal = document.getElementById('d-url') ? document.getElementById('d-url').value.trim() : '';
+    var nameVal = document.getElementById('d-url-name') ? document.getElementById('d-url-name').value.trim() : '';
+    var result = await _origAnalyzeByURL.apply(this, arguments);
+    await logActivity('analyzed', null, nameVal || urlVal, { source: 'url' });
+    return result;
+  };
+}
+
+// Wrap runDiscover
+var _origRunDiscover = typeof runDiscover === 'function' ? runDiscover : null;
+if (_origRunDiscover) {
+  runDiscover = async function() {
+    var sector = document.getElementById('d-sector') ? document.getElementById('d-sector').value.trim() : '';
+    var region = document.getElementById('d-region') ? document.getElementById('d-region').value.trim() : '';
+    var pipelineBefore = getPipeline().length;
+    var result = await _origRunDiscover.apply(this, arguments);
+    var added = getPipeline().length - pipelineBefore;
+    if (added > 0) {
+      await logActivity('discovered', null, sector + ' · ' + region, { added: added });
+    }
+    return result;
+  };
+}
+
+// Wrap runExplorer
+var _origRunExplorer = typeof runExplorer === 'function' ? runExplorer : null;
+if (_origRunExplorer) {
+  runExplorer = async function() {
+    var pipelineBefore = getPipeline().length;
+    var result = await _origRunExplorer.apply(this, arguments);
+    var added = getPipeline().length - pipelineBefore;
+    if (added > 0) {
+      await logActivity('discovered', null, '⚡ Explorador', { added: added });
+    }
+    return result;
+  };
+}
+
+// Wrap changeStatus
+var _origChangeStatus = typeof changeStatus === 'function' ? changeStatus : null;
+if (_origChangeStatus) {
+  changeStatus = function(id, newStatus) {
+    var pipeline = getPipeline();
+    var entry = pipeline.find(function(e){ return e.id === id; });
+    var companyName = entry ? entry.company : null;
+    var result = _origChangeStatus.apply(this, arguments);
+    if (companyName) {
+      logActivity('status_changed', id, companyName, { newStatus: newStatus });
+    }
+    return result;
+  };
+}
+
+// Wrap sendToGmail
+var _origSendToGmail = typeof sendToGmail === 'function' ? sendToGmail : null;
+if (_origSendToGmail) {
+  sendToGmail = async function(i) {
+    var companyName = currentAnalysis ? currentAnalysis.company : null;
+    var result = await _origSendToGmail.apply(this, arguments);
+    if (companyName) {
+      await logActivity('email_sent', null, companyName, {});
+    }
+    return result;
+  };
+}
+
+// Wrap pushToHubSpot
+var _origPushToHubSpot = typeof pushToHubSpot === 'function' ? pushToHubSpot : null;
+if (_origPushToHubSpot) {
+  pushToHubSpot = async function() {
+    var companyName = currentAnalysis ? currentAnalysis.company : null;
+    var result = await _origPushToHubSpot.apply(this, arguments);
+    if (companyName) {
+      await logActivity('hubspot_created', null, companyName, {});
+    }
+    return result;
+  };
+}
+
+// Wrap generatePitch (presentation generated)
+var _origGeneratePitch = typeof generatePitch === 'function' ? generatePitch : null;
+if (_origGeneratePitch) {
+  generatePitch = async function() {
+    var companyName = currentAnalysis ? currentAnalysis.company : null;
+    var result = await _origGeneratePitch.apply(this, arguments);
+    if (companyName) {
+      await logActivity('presentation_generated', null, companyName, {});
+    }
+    return result;
+  };
+}
+
+// Wrap generatePitchInline (inline presentation generated)
+var _origGeneratePitchInline = typeof generatePitchInline === 'function' ? generatePitchInline : null;
+if (_origGeneratePitchInline) {
+  generatePitchInline = async function() {
+    var companyName = currentAnalysis ? currentAnalysis.company : null;
+    var result = await _origGeneratePitchInline.apply(this, arguments);
+    if (companyName) {
+      await logActivity('presentation_generated', null, companyName, {});
+    }
+    return result;
+  };
+}
+
 
 // Auto-init on page load
 window.addEventListener('load', async function() {
@@ -5297,17 +5518,6 @@ function importWelcome(input) {
       if (typeof toast === 'function') toast(msg);
       else alert(msg);
 
-      // Sincronizar todo el pipeline importado con Supabase para que el equipo lo vea
-      if (typeof _currentUser !== 'undefined' && _currentUser && typeof syncCompanyToSupabase === 'function') {
-        if (typeof toast === 'function') toast('Sincronizando ' + current.length + ' empresas con el equipo...');
-        (async function() {
-          for (var i = 0; i < current.length; i++) {
-            await syncCompanyToSupabase(current[i]);
-          }
-          if (typeof toast === 'function') toast('✅ Sincronización con el equipo completada');
-        })();
-      }
-
       if (typeof showPage === 'function') showPage('pipeline');
 
     } catch(err) {
@@ -5326,4 +5536,3 @@ if (document.readyState === 'loading') {
 }
 </script>
 
-</body></html>
