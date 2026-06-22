@@ -4971,6 +4971,9 @@ async function initApp() {
   
   // Log login
   await logActivity('login', null, null, {});
+
+  // Mostrar pantalla de bienvenida/import si este usuario aún no ha importado su backup
+  await showWelcomeIfEmpty();
 }
 
 // ── SUPABASE PIPELINE SYNC ───────────────────
@@ -5458,19 +5461,37 @@ window.addEventListener('load', async function() {
 </div>
 
 <script>
-// ── LÓGICA MODAL BIENVENIDA ──
-function showWelcomeIfEmpty() {
-  var pipeline = [];
-  try { pipeline = JSON.parse(localStorage.getItem('mrwolf_pipeline') || '[]'); } catch(e) {}
-  var seen = localStorage.getItem('mrwolf_welcome_seen');
-  if (pipeline.length === 0 && !seen) {
-    document.getElementById('welcome-modal-overlay').style.display = 'flex';
+// ── LÓGICA MODAL BIENVENIDA (por usuario, vía Supabase) ──
+async function showWelcomeIfEmpty() {
+  if (!_currentUser) return; // esperar a que haya login
+
+  try {
+    var { data, error } = await sb.from('users')
+      .select('has_imported_backup')
+      .eq('email', _currentUser.email)
+      .single();
+    if (error) throw error;
+
+    if (!data || !data.has_imported_backup) {
+      document.getElementById('welcome-modal-overlay').style.display = 'flex';
+    }
+  } catch(e) {
+    console.warn('No se pudo comprobar el estado de bienvenida:', e.message);
   }
 }
 
-function closeWelcomeModal() {
+async function markBackupImported() {
+  if (!_currentUser) return;
+  try {
+    await sb.from('users').update({ has_imported_backup: true }).eq('email', _currentUser.email);
+  } catch(e) {
+    console.warn('No se pudo marcar el backup como importado:', e.message);
+  }
+}
+
+async function closeWelcomeModal() {
   document.getElementById('welcome-modal-overlay').style.display = 'none';
-  localStorage.setItem('mrwolf_welcome_seen', '1');
+  await markBackupImported();
 }
 
 function importWelcome(input) {
@@ -5505,7 +5526,6 @@ function importWelcome(input) {
       }
 
       localStorage.setItem('mrwolf_pipeline', JSON.stringify(current));
-      localStorage.setItem('mrwolf_welcome_seen', '1');
 
       if (typeof updateDashboard === 'function') updateDashboard();
       if (typeof renderPipeline === 'function') renderPipeline();
@@ -5518,6 +5538,20 @@ function importWelcome(input) {
       if (typeof toast === 'function') toast(msg);
       else alert(msg);
 
+      // Marcar al usuario como ya importado, en Supabase (persiste entre dispositivos)
+      markBackupImported();
+
+      // Sincronizar todo el pipeline importado con Supabase para que el equipo lo vea
+      if (typeof _currentUser !== 'undefined' && _currentUser && typeof syncCompanyToSupabase === 'function') {
+        if (typeof toast === 'function') toast('Sincronizando ' + current.length + ' empresas con el equipo...');
+        (async function() {
+          for (var i = 0; i < current.length; i++) {
+            await syncCompanyToSupabase(current[i]);
+          }
+          if (typeof toast === 'function') toast('✅ Sincronización con el equipo completada');
+        })();
+      }
+
       if (typeof showPage === 'function') showPage('pipeline');
 
     } catch(err) {
@@ -5527,12 +5561,6 @@ function importWelcome(input) {
   };
   reader.readAsText(file);
 }
-
-// Ejecutar al cargar la página
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', showWelcomeIfEmpty);
-} else {
-  setTimeout(showWelcomeIfEmpty, 300);
-}
 </script>
 
+</body></html>
