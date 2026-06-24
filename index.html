@@ -1360,7 +1360,8 @@ body {
         <div class="form-grid-3">
           <div class="form-group">
             <label class="form-label">Empresa *</label>
-            <input type="text" class="form-input" id="a-company" placeholder="Nombre de la empresa">
+            <input type="text" class="form-input" id="a-company" placeholder="Nombre de la empresa" oninput="checkLiveDuplicate(this.value)">
+            <div id="a-company-dup-banner" style="display:none;margin-top:6px;padding:8px 10px;background:rgba(240,192,64,0.1);border:1px solid rgba(240,192,64,0.35);border-radius:7px;font-size:11px;color:#F0C040"></div>
           </div>
           <div class="form-group">
             <label class="form-label">Sector</label>
@@ -2487,11 +2488,19 @@ function renderCompanies(empresas, numNuevas, yaExistian) {
   }
   empresas.forEach(emp => {
     var isExisting = yaExistian && yaExistian.map(function(n){ return n.toLowerCase(); }).indexOf((emp.nombre||'').toLowerCase()) >= 0;
+    var existingEntry = isExisting ? getPipeline().find(function(p){ return p.company.toLowerCase().trim() === (emp.nombre||'').toLowerCase().trim(); }) : null;
+    var dupBadge = '';
+    if (isExisting) {
+      var who = (existingEntry && (existingEntry._added_by || existingEntry.owner_name)) || 'el equipo';
+      dupBadge = '<div style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:rgba(240,192,64,0.12);border:1px solid rgba(240,192,64,0.35);border-radius:20px;font-size:10px;color:#F0C040;font-weight:700;margin-bottom:8px">⚠ Ya en pipeline · ' + who + '</div>';
+    }
     const sc = emp.score_encaje || 5;
     const col = scoreColor(sc);
     const card = document.createElement('div');
     card.className = 'company-card';
+    if (isExisting) card.style.opacity = '0.75';
     card.innerHTML = `
+      ${dupBadge}
       <div class="company-header">
         <div>
           <div class="company-name">${emp.nombre}</div>
@@ -2507,7 +2516,10 @@ function renderCompanies(empresas, numNuevas, yaExistian) {
       <div class="signal esg"><strong>📋 Señal ESG:</strong> ${emp.señal_esg}</div>
       <div class="company-footer">
         <div class="priority-text">Contactar: <span>${emp.perfil_contacto_prioritario}</span></div>
-        <button class="btn-analyze" onclick="prefillAnalyze('${emp.nombre.replace(/'/g,"\\'")}','${emp.sector.replace(/'/g,"\\'")}','${emp.pais.replace(/'/g,"\\'")}','${(emp.conexion_marina+'. '+emp.señal_esg).replace(/'/g,"\\'")}')">Analizar →</button>
+        ${isExisting && existingEntry
+          ? `<button class="btn-secondary" onclick="showPipelineModal('${existingEntry.id}')">Ver existente →</button>`
+          : `<button class="btn-analyze" onclick="prefillAnalyze('${emp.nombre.replace(/'/g,"\\'")}','${emp.sector.replace(/'/g,"\\'")}','${emp.pais.replace(/'/g,"\\'")}','${(emp.conexion_marina+'. '+emp.señal_esg).replace(/'/g,"\\'")}')">Analizar →</button>`
+        }
       </div>`;
     grid.appendChild(card);
   });
@@ -3344,17 +3356,40 @@ function renderPipeline() {
     const date = e.date ? new Date(e.date).toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit'}) : '—';
 
     let ownerCell;
+    const discoveredBy = e._added_by || null; // quién lo descubrió/analizó primero (de Supabase)
+
+    // Reclamo "estancado": reclamado hace más de 7 días y sin avanzar de estado
+    var isStaleClaim = false;
+    if (e.owner_email && e.owner_claimed_at) {
+      var daysSinceClaim = (Date.now() - new Date(e.owner_claimed_at).getTime()) / 86400000;
+      var stalledStatuses = ['descubierta', 'analizada'];
+      if (daysSinceClaim > 7 && stalledStatuses.indexOf(e.status) >= 0) isStaleClaim = true;
+    }
+
     if (e.owner_email) {
+      // Reclamado activamente por alguien
       const isMe = _currentUser && e.owner_email === _currentUser.email;
-      ownerCell = `<div class="owner-badge" style="display:flex;align-items:center;gap:6px">
-        <div class="team-avatar" style="width:20px;height:20px;font-size:9px;background:${e.owner_color||'#00D4A0'}">${(e.owner_name||'?').charAt(0)}</div>
-        <span style="font-size:11px;color:${isMe?'#00D4A0':'var(--text2)'}">${isMe?'Tú':e.owner_name}</span>
+      ownerCell = `<div class="owner-badge" style="display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="team-avatar" style="width:20px;height:20px;font-size:9px;background:${e.owner_color||'#00D4A0'};cursor:pointer" onclick="showOwnerProfile('${e.owner_email}')">${(e.owner_name||'?').charAt(0)}</div>
+          <span style="font-size:11px;font-weight:700;color:${isMe?'#00D4A0':'#fff'};cursor:pointer" onclick="showOwnerProfile('${e.owner_email}')">${isMe?'Tú':e.owner_name}</span>
+          ${isMe ? `<button class="btn-secondary" style="padding:2px 6px;font-size:9px" onclick="unclaimCompany('${e.id}')" title="Liberar">✕</button>` : ''}
+        </div>
+        ${discoveredBy && discoveredBy !== e.owner_name ? `<span style="font-size:9px;color:#3A6A85">🔍 Descubierto por ${discoveredBy}</span>` : ''}
+        ${isStaleClaim ? `<span style="font-size:9px;color:#F0C040">⏳ Sin avanzar +7 días</span>` : ''}
+      </div>`;
+    } else if (discoveredBy) {
+      // Nadie lo ha reclamado, pero sabemos quién lo descubrió/analizó
+      ownerCell = `<div style="display:flex;flex-direction:column;gap:3px">
+        <span style="font-size:11px;color:var(--text2)">🔍 ${discoveredBy}</span>
+        <button class="btn-secondary" style="padding:3px 8px;font-size:9px;align-self:flex-start" onclick="claimCompany('${e.id}')">🙋 Reclamar</button>
       </div>`;
     } else {
+      // Sin información de autoría en absoluto
       ownerCell = `<button class="btn-secondary" style="padding:4px 10px;font-size:10px" onclick="claimCompany('${e.id}')">🙋 Reclamar</button>`;
     }
 
-    return `<tr>
+    return `<tr${isStaleClaim ? ' style="box-shadow: inset 3px 0 0 #F0C040"' : ''}>
       <td><div class="pipe-score" style="background:${col}18;border:1px solid ${col}44;color:${col}">${e.score||'?'}</div></td>
       <td><div class="pipe-name">${e.company}</div><div class="pipe-meta">${e.sector||''} · ${e.country||''}</div></td>
       <td class="pipe-encaje">${ENCAJE_ICONS[e.encaje]||'🔷'}</td>
@@ -3390,6 +3425,7 @@ async function claimCompany(id) {
   pipeline[idx].owner_email = _currentUser.email;
   pipeline[idx].owner_name = _currentUser.name;
   pipeline[idx].owner_color = _currentUser.avatar_color || '#00D4A0';
+  pipeline[idx].owner_claimed_at = new Date().toISOString();
 
   savePipeline(pipeline);
   await logActivity('claimed', id, pipeline[idx].company, {});
@@ -3577,6 +3613,60 @@ function exportCSV() {
   a.href = url; a.download = 'mrwolf_pipeline.csv'; a.click();
   URL.revokeObjectURL(url);
   toast('✓ CSV exportado');
+}
+
+async function showOwnerProfile(email) {
+  if (!email) return;
+  var user = (window._teamUsersByEmail && window._teamUsersByEmail[email]) || { name: email, avatar_color: '#00D4A0' };
+  var pipeline = getPipeline();
+  var claimedCompanies = pipeline.filter(function(e){ return e.owner_email === email; });
+
+  document.getElementById('modal-title').textContent = '👤 ' + user.name;
+  var body = document.getElementById('modal-body');
+  body.innerHTML = '<div style="padding:20px 0;color:var(--text2);font-size:12px">Cargando...</div>';
+  document.getElementById('modal-overlay').classList.add('show');
+
+  var activityHtml = '<div style="color:#3A6A85;font-size:12px">Cargando actividad...</div>';
+  try {
+    var { data: activity } = await sb.from('activity_log')
+      .select('*')
+      .eq('user_email', email)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    activityHtml = (activity && activity.length)
+      ? activity.map(function(a) {
+          var mins = Math.floor((Date.now() - new Date(a.created_at)) / 60000);
+          var timeStr = mins < 60 ? mins + 'm' : Math.floor(mins/60) < 24 ? Math.floor(mins/60) + 'h' : Math.floor(mins/1440) + 'd';
+          return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px">' +
+            '<span style="color:#a8ccd8">' + a.action + (a.company_name ? ' · ' + a.company_name : '') + '</span>' +
+            '<span style="color:#3A6A85">' + timeStr + '</span></div>';
+        }).join('')
+      : '<div style="color:#3A6A85;font-size:12px">Sin actividad reciente.</div>';
+  } catch(e) {
+    activityHtml = '<div style="color:#3A6A85;font-size:12px">No se pudo cargar la actividad.</div>';
+  }
+
+  var claimedHtml = claimedCompanies.length
+    ? claimedCompanies.map(function(c) {
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04)">' +
+          '<span style="font-size:12px;color:#fff;cursor:pointer" onclick="closeModal();setTimeout(function(){showPipelineModal(\'' + c.id + '\')},150)">' + c.company + '</span>' +
+          '<span style="font-size:10px;color:var(--text3)">' + (c.status||'') + '</span></div>';
+      }).join('')
+    : '<div style="color:#3A6A85;font-size:12px">No tiene empresas reclamadas actualmente.</div>';
+
+  body.innerHTML =
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">' +
+      '<div class="team-avatar" style="width:48px;height:48px;font-size:18px;background:' + (user.avatar_color||'#00D4A0') + '">' + user.name.charAt(0) + '</div>' +
+      '<div><div style="font-size:15px;font-weight:700;color:#fff">' + user.name + '</div><div style="font-size:11px;color:var(--text3)">' + email + '</div></div>' +
+    '</div>' +
+    '<div style="margin-bottom:20px">' +
+      '<div style="font-size:11px;color:var(--text3);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">🙋 Empresas reclamadas (' + claimedCompanies.length + ')</div>' +
+      claimedHtml +
+    '</div>' +
+    '<div>' +
+      '<div style="font-size:11px;color:var(--text3);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">⚡ Actividad reciente</div>' +
+      activityHtml +
+    '</div>';
 }
 
 function showPipelineModal(id) {
@@ -4719,6 +4809,13 @@ async function startAutoMode() {
   var totalFound = results.reduce(function(s,r){ return s+r.found; }, 0);
   var totalAdded = results.reduce(function(s,r){ return s+r.added; }, 0);
 
+  // Guardar un registro de lo que Modo Auto encontró, para mostrar resumen "mientras no estabas"
+  try {
+    var autoLog = JSON.parse(localStorage.getItem('mrwolf_auto_runs') || '[]');
+    autoLog.unshift({ date: new Date().toISOString(), totalFound: totalFound, totalAdded: totalAdded, sectors: Object.keys(results.reduce(function(s,r){s[r.sector]=1;return s;},{})) });
+    localStorage.setItem('mrwolf_auto_runs', JSON.stringify(autoLog.slice(0, 10)));
+  } catch(e) {}
+
   var resCard = document.getElementById('auto-results-card');
   var resContent = document.getElementById('auto-results-content');
   if (resCard) resCard.style.display = 'block';
@@ -5046,6 +5143,9 @@ async function initApp() {
   // Log login
   await logActivity('login', null, null, {});
 
+  // Mostrar resumen de "mientras no estabas" antes del welcome screen
+  await showAwaySummary();
+
   // Mostrar pantalla de bienvenida/import si este usuario aún no ha importado su backup
   await showWelcomeIfEmpty();
 }
@@ -5153,6 +5253,35 @@ async function logActivity(action, companyId, companyName, detail) {
 }
 
 // ── CONFLICT DETECTION ───────────────────────
+// ── LIVE DUPLICATE CHECK (mientras escribes) ──
+var _dupCheckTimer = null;
+function checkLiveDuplicate(value) {
+  clearTimeout(_dupCheckTimer);
+  var banner = document.getElementById('a-company-dup-banner');
+  if (!banner) return;
+  var name = (value || '').trim();
+  if (name.length < 3) { banner.style.display = 'none'; return; }
+
+  _dupCheckTimer = setTimeout(function() {
+    var pipeline = getPipeline();
+    var match = pipeline.find(function(e) {
+      return e.company.toLowerCase().trim() === name.toLowerCase().trim();
+    });
+    if (match) {
+      var who = match._added_by || match.owner_name || 'alguien del equipo';
+      var statusLabel = ({
+        descubierta: 'Descubierta', analizada: 'Analizada ✓', borrador: 'En Gmail',
+        contactada: 'Contactada', en_hubspot: 'En HubSpot', cerrado: 'Cerrado'
+      })[match.status] || match.status;
+      banner.innerHTML = '⚠ <strong>' + match.company + '</strong> ya está en el pipeline (' + statusLabel + ') · descubierta/trabajada por <strong>' + who + '</strong>. ' +
+        '<button class="btn-secondary" style="padding:2px 8px;font-size:10px;margin-left:6px" onclick="showPipelineModal(\'' + match.id + '\')">Ver análisis existente</button>';
+      banner.style.display = 'block';
+    } else {
+      banner.style.display = 'none';
+    }
+  }, 350);
+}
+
 async function checkConflict(companyName) {
   try {
     var since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -5627,6 +5756,62 @@ window.addEventListener('load', async function() {
 </div>
 
 <script>
+// ── RESUMEN "MIENTRAS NO ESTABAS" ────────────
+async function showAwaySummary() {
+  if (!_currentUser) return;
+  var lastSeenKey = 'mrwolf_last_seen_' + _currentUser.email;
+  var lastSeen = localStorage.getItem(lastSeenKey);
+  var now = new Date().toISOString();
+  localStorage.setItem(lastSeenKey, now);
+
+  if (!lastSeen) return; // primera vez de este usuario en este navegador — nada que resumir
+
+  // Si hace menos de 30 minutos que estuvo activo, no merece la pena mostrar resumen
+  var minsSince = (Date.now() - new Date(lastSeen).getTime()) / 60000;
+  if (minsSince < 30) return;
+
+  try {
+    var { data: activity } = await sb.from('activity_log')
+      .select('*')
+      .neq('user_email', _currentUser.email)
+      .in('action', ['discovered', 'analyzed', 'claimed'])
+      .gte('created_at', lastSeen)
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    if (!activity || !activity.length) return; // nada nuevo, no molestar
+
+    var byPerson = {};
+    activity.forEach(function(a) {
+      if (!byPerson[a.user_name]) byPerson[a.user_name] = { discovered: 0, analyzed: 0, claimed: 0, companies: [] };
+      byPerson[a.user_name][a.action] = (byPerson[a.user_name][a.action] || 0) + 1;
+      if (a.company_name && byPerson[a.user_name].companies.length < 5) byPerson[a.user_name].companies.push(a.company_name);
+    });
+
+    var lines = Object.keys(byPerson).map(function(name) {
+      var d = byPerson[name];
+      var parts = [];
+      if (d.discovered) parts.push(d.discovered + ' búsquedas');
+      if (d.analyzed) parts.push(d.analyzed + ' análisis');
+      if (d.claimed) parts.push(d.claimed + ' reclamadas');
+      return '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05)">' +
+        '<div style="font-size:12px;font-weight:700;color:#fff">' + name + '</div>' +
+        '<div style="font-size:11px;color:#a8ccd8">' + parts.join(' · ') + (d.companies.length ? ' — ' + d.companies.join(', ') : '') + '</div>' +
+      '</div>';
+    }).join('');
+
+    if (typeof toast === 'function') {
+      toast('👋 Mientras no estabas: ' + activity.length + ' acciones del equipo. Revisa el Dashboard → Equipo.');
+    }
+
+    // Si existe el contenedor de equipo, también podemos prepararlo, pero no forzamos cambio de vista
+    console.log('Resumen mientras no estabas:', byPerson);
+  } catch(e) {
+    console.warn('No se pudo cargar el resumen de actividad:', e.message);
+  }
+}
+
+
 // ── LÓGICA MODAL BIENVENIDA (por usuario, vía Supabase) ──
 async function showWelcomeIfEmpty() {
   if (!_currentUser) return; // esperar a que haya login
