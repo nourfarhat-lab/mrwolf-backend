@@ -1222,7 +1222,8 @@ body {
           </div>
         </div>
         <div class="card" style="margin-bottom:0">
-          <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:14px">⭐ Top scores en pipeline</div>
+          <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px">⭐ Top scores en pipeline</div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:12px">Mejores oportunidades de todo el equipo</div>
           <div id="top-scores-list">
             <div class="empty-state" style="padding:30px 10px">
               <div class="empty-icon">🐺</div>
@@ -1239,6 +1240,22 @@ body {
           <div style="font-size:12px;color:var(--text3);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px">👥 Miembros del equipo</div>
           <div id="team-roster" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px"></div>
         </div>
+
+        <div class="card" style="margin-bottom:20px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <div style="font-size:12px;color:var(--text3);font-weight:700;letter-spacing:1px;text-transform:uppercase">📊 Resumen de actividad</div>
+            <div style="display:flex;gap:6px">
+              <button id="summary-toggle-day" class="dash-toggle-btn dash-toggle-active" style="padding:5px 12px;font-size:11px" onclick="switchSummaryRange('day')">Hoy</button>
+              <button id="summary-toggle-week" class="dash-toggle-btn" style="padding:5px 12px;font-size:11px" onclick="switchSummaryRange('week')">Esta semana</button>
+            </div>
+          </div>
+          <div id="team-summary">
+            <div class="empty-state" style="padding:20px 10px">
+              <div class="empty-sub">Cargando resumen...</div>
+            </div>
+          </div>
+        </div>
+
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
           <div class="card" style="margin:0">
             <div style="font-size:12px;color:var(--text3);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px">🏆 Empresas por persona</div>
@@ -1502,6 +1519,11 @@ body {
           <option value="6">Score 6+</option>
           <option value="4">Score 4+</option>
         </select>
+        <select class="filter-select" id="pipe-owner" onchange="renderPipeline()">
+          <option value="">👥 Todo el equipo</option>
+          <option value="__mine__">👤 Solo mías</option>
+          <option value="__unclaimed__">🆓 Sin asignar</option>
+        </select>
         <button class="btn-secondary" onclick="clearPipeline()" style="white-space:nowrap">🗑 Limpiar todo</button>
         <button class="btn-secondary" onclick="exportCSV()" style="white-space:nowrap">⬇ Exportar CSV</button>
         <button class="btn-secondary" onclick="exportJSON()" style="white-space:nowrap" title="Backup completo con análisis y emails">📦 Backup completo</button>
@@ -1519,13 +1541,14 @@ body {
               <th>Empresa</th>
               <th>Encaje</th>
               <th>Propuesta</th>
+              <th>Responsable</th>
               <th>Estado</th>
               <th>Fecha</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody id="pipeline-tbody">
-            <tr><td colspan="7">
+            <tr><td colspan="8">
               <div class="empty-state">
                 <div class="empty-icon">🐺</div>
                 <div class="empty-title">Pipeline vacío</div>
@@ -1957,17 +1980,21 @@ function updateDashboard() {
     }).join('');
   }
 
-  // Top scores
-  const top = [...pipeline].filter(e=>e.score).sort((a,b)=>b.score-a.score).slice(0,5);
+  // Top scores — across the WHOLE team's shared pipeline
+  const top = [...pipeline].filter(e=>e.score).sort((a,b)=>b.score-a.score).slice(0,8);
   const tl = document.getElementById('top-scores-list');
   if (!top.length) {
     tl.innerHTML = `<div class="empty-state" style="padding:30px 10px"><div class="empty-icon">🐺</div><div class="empty-title">Pipeline vacío</div><div class="empty-sub">Analiza empresas para poblar el pipeline</div></div>`;
   } else {
     tl.innerHTML = top.map(e => {
       const col = scoreColor(e.score);
+      const analystName = e._added_by || (e.owner_name) || null;
+      const attribution = analystName
+        ? `<div style="font-size:10px;color:#3A6A85;margin-top:2px">👤 ${analystName}</div>`
+        : '';
       return `<div class="recent-item" style="cursor:pointer" onclick="showPipelineModal('${e.id}')">
         <div class="recent-score" style="background:${col}18;border:1px solid ${col}44;color:${col}">${e.score}</div>
-        <div style="flex:1"><div class="recent-name">${e.company}</div><div class="recent-meta">${e.propuesta||'—'}</div></div>
+        <div style="flex:1"><div class="recent-name">${e.company}</div><div class="recent-meta">${e.propuesta||'—'}</div>${attribution}</div>
         <div style="font-size:20px">${ENCAJE_ICONS[e.encaje]||'🔷'}</div>
       </div>`;
     }).join('');
@@ -3268,20 +3295,24 @@ function renderPipeline() {
   const statusF = document.getElementById('pipe-status').value;
   const scoreF = parseInt(document.getElementById('pipe-score').value) || 0;
   const sectorF = document.getElementById('pipe-sector').value;
+  const ownerEl = document.getElementById('pipe-owner');
+  const ownerF = ownerEl ? ownerEl.value : '';
 
   let filtered = pipeline.filter(e => {
     if (search && !e.company.toLowerCase().includes(search)) return false;
     if (statusF && e.status !== statusF) return false;
     if (scoreF && (e.score||0) < scoreF) return false;
     if (sectorF && e.sector !== sectorF) return false;
+    if (ownerF === '__mine__' && !(_currentUser && e.owner_email === _currentUser.email)) return false;
+    if (ownerF === '__unclaimed__' && e.owner_email) return false;
     return true;
   }).sort((a,b) => (b.score||0)-(a.score||0));
 
   const tbody = document.getElementById('pipeline-tbody');
   if (!filtered.length) {
     tbody.innerHTML = pipeline.length
-      ? `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Sin resultados</div><div class="empty-sub">Ajusta los filtros</div></div></td></tr>`
-      : `<tr><td colspan="7"><div class="empty-state" style="padding:40px 20px">
+      ? `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Sin resultados</div><div class="empty-sub">Ajusta los filtros</div></div></td></tr>`
+      : `<tr><td colspan="8"><div class="empty-state" style="padding:40px 20px">
           <div class="empty-icon">🐺</div>
           <div class="empty-title">Pipeline vacío</div>
           <div class="empty-sub" style="margin-bottom:20px">Si tienes un backup .json de un compañero, cárgalo aquí</div>
@@ -3311,11 +3342,24 @@ function renderPipeline() {
     const col = scoreColor(e.score||5);
     const sm = statusMap[e.status] || statusMap.descubierta;
     const date = e.date ? new Date(e.date).toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit'}) : '—';
+
+    let ownerCell;
+    if (e.owner_email) {
+      const isMe = _currentUser && e.owner_email === _currentUser.email;
+      ownerCell = `<div class="owner-badge" style="display:flex;align-items:center;gap:6px">
+        <div class="team-avatar" style="width:20px;height:20px;font-size:9px;background:${e.owner_color||'#00D4A0'}">${(e.owner_name||'?').charAt(0)}</div>
+        <span style="font-size:11px;color:${isMe?'#00D4A0':'var(--text2)'}">${isMe?'Tú':e.owner_name}</span>
+      </div>`;
+    } else {
+      ownerCell = `<button class="btn-secondary" style="padding:4px 10px;font-size:10px" onclick="claimCompany('${e.id}')">🙋 Reclamar</button>`;
+    }
+
     return `<tr>
       <td><div class="pipe-score" style="background:${col}18;border:1px solid ${col}44;color:${col}">${e.score||'?'}</div></td>
       <td><div class="pipe-name">${e.company}</div><div class="pipe-meta">${e.sector||''} · ${e.country||''}</div></td>
       <td class="pipe-encaje">${ENCAJE_ICONS[e.encaje]||'🔷'}</td>
       <td style="font-size:11px;color:var(--text2);max-width:150px">${e.propuesta||'—'}</td>
+      <td>${ownerCell}</td>
       <td>
         <div class="status-select-wrap" style="position:relative">
           <button class="status-badge ${sm.cls}" style="cursor:pointer;border:none;font-family:Syne,sans-serif;letter-spacing:0.3px"
@@ -3335,6 +3379,36 @@ function renderPipeline() {
       </td>
     </tr>`;
   }).join('');
+}
+
+async function claimCompany(id) {
+  if (!_currentUser) return;
+  const pipeline = getPipeline();
+  const idx = pipeline.findIndex(e => e.id === id);
+  if (idx === -1) return;
+
+  pipeline[idx].owner_email = _currentUser.email;
+  pipeline[idx].owner_name = _currentUser.name;
+  pipeline[idx].owner_color = _currentUser.avatar_color || '#00D4A0';
+
+  savePipeline(pipeline);
+  await logActivity('claimed', id, pipeline[idx].company, {});
+  if (typeof toast === 'function') toast('🙋 Has reclamado ' + pipeline[idx].company);
+}
+
+function unclaimCompany(id) {
+  if (!_currentUser) return;
+  const pipeline = getPipeline();
+  const idx = pipeline.findIndex(e => e.id === id);
+  if (idx === -1) return;
+  if (pipeline[idx].owner_email !== _currentUser.email) return; // solo el dueño puede liberar
+
+  delete pipeline[idx].owner_email;
+  delete pipeline[idx].owner_name;
+  delete pipeline[idx].owner_color;
+
+  savePipeline(pipeline);
+  if (typeof toast === 'function') toast('Has liberado ' + pipeline[idx].company);
 }
 
 function toggleStatusMenu(id, btn) {
@@ -4977,6 +5051,15 @@ async function initApp() {
 }
 
 // ── SUPABASE PIPELINE SYNC ───────────────────
+function resolveUserName(email) {
+  if (!email) return 'Unknown';
+  if (window._teamUsersByEmail && window._teamUsersByEmail[email]) {
+    return window._teamUsersByEmail[email].name;
+  }
+  if (_currentUser && _currentUser.email === email) return _currentUser.name;
+  return email; // fallback: show the email if we haven't loaded the roster yet
+}
+
 async function loadPipelineFromSupabase() {
   try {
     var { data, error } = await sb.from('companies').select('*').order('created_at', { ascending: false });
@@ -4986,8 +5069,10 @@ async function loadPipelineFromSupabase() {
     var pipeline = (data || []).map(function(row) {
       return Object.assign({}, row.data, {
         id: row.id,
-        _added_by: row.added_by_name,
-        _updated_by: row.updated_by_name,
+        _added_by_email: row.added_by,
+        _added_by: resolveUserName(row.added_by),
+        _updated_by_email: row.updated_by,
+        _updated_by: resolveUserName(row.updated_by),
         _supabase: true
       });
     });
@@ -5014,13 +5099,15 @@ async function loadPipelineFromSupabase() {
 async function syncCompanyToSupabase(company) {
   if (!_currentUser) return;
   try {
+    // Preserve original added_by if this company already exists in Supabase —
+    // only the first sync should set added_by; later syncs should only touch updated_by.
+    var addedBy = company._added_by_email || _currentUser.email;
+
     var { error } = await sb.from('companies').upsert({
       id: company.id,
       data: company,
-      added_by_email: _currentUser.email,
-      added_by_name: _currentUser.name,
-      updated_by_email: _currentUser.email,
-      updated_by_name: _currentUser.name,
+      added_by: addedBy,
+      updated_by: _currentUser.email,
       updated_at: new Date().toISOString()
     }, { onConflict: 'id' });
     if (error) console.warn('Sync error:', error.message);
@@ -5104,6 +5191,11 @@ async function loadTeamDashboard() {
   if (!container) return;
   
   try {
+    // Load full user roster first, so we can resolve emails -> names everywhere below
+    var { data: users } = await sb.from('users').select('*').order('name', { ascending: true });
+    window._teamUsersByEmail = {};
+    (users || []).forEach(function(u) { window._teamUsersByEmail[u.email] = u; });
+
     // Load recent activity from all users
     var { data: activity } = await sb.from('activity_log')
       .select('*')
@@ -5114,31 +5206,34 @@ async function loadTeamDashboard() {
     var { data: companies, count } = await sb.from('companies')
       .select('*', { count: 'exact' });
     
-    // Count by status
+    // Count by status and by owner (keyed by email — robust against name collisions)
     var statusCounts = {};
-    var userCounts = {};
+    var userCounts = {}; // keyed by email
     (companies || []).forEach(function(c) {
       var status = (c.data && c.data.status) || 'descubierta';
       statusCounts[status] = (statusCounts[status] || 0) + 1;
-      var user = c.added_by_name || 'Unknown';
-      userCounts[user] = (userCounts[user] || 0) + 1;
+      var email = c.added_by || 'unknown';
+      userCounts[email] = (userCounts[email] || 0) + 1;
     });
     
     // Build team stats HTML
     var statsEl = document.getElementById('team-stats');
     if (statsEl) {
-      statsEl.innerHTML = Object.keys(userCounts).map(function(name) {
-        return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05)">' +
-          '<span style="color:#a8ccd8">' + name + '</span>' +
-          '<span style="color:#00D4A0;font-weight:700">' + userCounts[name] + ' companies</span></div>';
-      }).join('');
+      statsEl.innerHTML = Object.keys(userCounts)
+        .sort(function(a,b){ return userCounts[b]-userCounts[a]; })
+        .map(function(email) {
+          var name = resolveUserName(email);
+          return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05)">' +
+            '<span style="color:#a8ccd8">' + name + '</span>' +
+            '<span style="color:#00D4A0;font-weight:700">' + userCounts[email] + ' companies</span></div>';
+        }).join('') || '<div style="color:#3A6A85;font-size:12px">No data yet.</div>';
     }
     
     // Build activity feed
     var actionIcons = {
       login: '🔐', analyzed: '🧠', discovered: '🔍', email_sent: '📧',
       status_changed: '🔄', hubspot_created: '🔶', presentation_generated: '🎯',
-      contacted: '✉', default: '⚡'
+      contacted: '✉', claimed: '🙋', default: '⚡'
     };
     
     container.innerHTML = (activity || []).map(function(a) {
@@ -5151,8 +5246,8 @@ async function loadTeamDashboard() {
       var actionLabels = {
         login: 'logged in', analyzed: 'analyzed', discovered: 'discovered',
         email_sent: 'sent email to', status_changed: 'updated',
-        hubspot_created: 'created HubSpot deal for', presentation_generated: 'generated pitch for',
-        contacted: 'contacted'
+        hubspot_created: 'prepared HubSpot deal for', presentation_generated: 'generated pitch for',
+        contacted: 'contacted', claimed: '🙋 claimed'
       };
       var label = actionLabels[a.action] || a.action;
       
@@ -5180,11 +5275,10 @@ async function loadTeamDashboard() {
     // Build team roster — every registered user, with live company counts
     var rosterEl = document.getElementById('team-roster');
     if (rosterEl) {
-      var { data: users } = await sb.from('users').select('*').order('name', { ascending: true });
       rosterEl.innerHTML = (users || []).map(function(u) {
         var initial = (u.name || u.email || '?').charAt(0).toUpperCase();
         var color = u.avatar_color || '#00D4A0';
-        var count = userCounts[u.name] || 0;
+        var count = userCounts[u.email] || 0;
         var isYou = _currentUser && _currentUser.email === u.email;
         return '<div class="team-roster-card">' +
           '<div class="team-avatar" style="background:' + color + ';width:34px;height:34px;font-size:13px">' + initial + '</div>' +
@@ -5198,6 +5292,77 @@ async function loadTeamDashboard() {
     
   } catch(e) {
     console.warn('Team dashboard load failed:', e.message);
+  }
+}
+
+// ── TEAM SUMMARY (daily/weekly) ──────────────
+var _summaryRange = 'day';
+
+function switchSummaryRange(range) {
+  _summaryRange = range;
+  document.getElementById('summary-toggle-day').classList.toggle('dash-toggle-active', range === 'day');
+  document.getElementById('summary-toggle-week').classList.toggle('dash-toggle-active', range === 'week');
+  loadTeamSummary();
+}
+
+async function loadTeamSummary() {
+  var el = document.getElementById('team-summary');
+  if (!el) return;
+
+  try {
+    var since = new Date(Date.now() - (_summaryRange === 'week' ? 7 : 1) * 86400000).toISOString();
+    var { data: activity, error } = await sb.from('activity_log')
+      .select('*')
+      .gte('created_at', since)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    if (!activity || !activity.length) {
+      el.innerHTML = '<div class="empty-state" style="padding:20px 10px"><div class="empty-icon">🌊</div><div class="empty-title">Sin actividad en este periodo</div></div>';
+      return;
+    }
+
+    // Totales por tipo de acción
+    var totals = {};
+    activity.forEach(function(a) { totals[a.action] = (totals[a.action] || 0) + 1; });
+
+    var actionLabelsEs = {
+      login: 'Logins', analyzed: 'Empresas analizadas', discovered: 'Búsquedas (Descubrir/Explorer)',
+      email_sent: 'Emails enviados', status_changed: 'Cambios de estado',
+      hubspot_created: 'Notas HubSpot preparadas', presentation_generated: 'Presentaciones generadas',
+      contacted: 'Contactos', claimed: 'Empresas reclamadas'
+    };
+
+    var totalsHtml = Object.keys(totals)
+      .sort(function(a,b){ return totals[b]-totals[a]; })
+      .map(function(action) {
+        return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04)">' +
+          '<span style="color:#a8ccd8;font-size:12px">' + (actionLabelsEs[action] || action) + '</span>' +
+          '<span style="color:#00D4A0;font-weight:700;font-size:12px">' + totals[action] + '</span></div>';
+      }).join('');
+
+    // Desglose por persona
+    var perPerson = {};
+    activity.forEach(function(a) {
+      if (!perPerson[a.user_name]) perPerson[a.user_name] = 0;
+      perPerson[a.user_name]++;
+    });
+    var perPersonHtml = Object.keys(perPerson)
+      .sort(function(a,b){ return perPerson[b]-perPerson[a]; })
+      .map(function(name) {
+        return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04)">' +
+          '<span style="color:#fff;font-size:12px;font-weight:700">' + name + '</span>' +
+          '<span style="color:#a8ccd8;font-size:12px">' + perPerson[name] + ' acciones</span></div>';
+      }).join('');
+
+    el.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">' +
+      '<div><div style="font-size:10px;color:#3A6A85;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:8px">Por tipo de acción</div>' + totalsHtml + '</div>' +
+      '<div><div style="font-size:10px;color:#3A6A85;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:8px">Por persona</div>' + perPersonHtml + '</div>' +
+      '</div>';
+
+  } catch(e) {
+    console.warn('Team summary load failed:', e.message);
+    el.innerHTML = '<div style="color:#3A6A85;font-size:12px">No se pudo cargar el resumen.</div>';
   }
 }
 
@@ -5215,6 +5380,7 @@ function switchDashboardView(view) {
     mineBtn.classList.remove('dash-toggle-active');
     teamBtn.classList.add('dash-toggle-active');
     loadTeamDashboard();
+    loadTeamSummary();
   } else {
     mineView.style.display = 'block';
     teamView.style.display = 'none';
