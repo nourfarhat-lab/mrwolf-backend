@@ -67,6 +67,66 @@
   margin-top: 10px;
 }
 /* ── TEAM ACTIVITY FEED ── */
+/* ── MAP CARDS ── */
+.map-company-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.map-company-card:hover {
+  background: rgba(0,212,160,0.05);
+  border-color: rgba(0,212,160,0.2);
+  transform: translateY(-1px);
+}
+.map-sector-group { margin-bottom: 24px; }
+.map-sector-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.map-sector-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.05);
+}
+/* ── GLOBAL SEARCH RESULTS ── */
+.gsearch-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.gsearch-item:hover, .gsearch-item.selected {
+  background: rgba(0,212,160,0.08);
+}
+.gsearch-score {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
 .dash-toggle-btn {
   padding: 9px 18px;
   border-radius: 8px;
@@ -1215,8 +1275,16 @@ body {
     <button class="nav-item" onclick="showPage('pitch')">
       <span class="nav-icon">🎯</span> Presentación
     </button>
+    <button class="nav-item" onclick="showPage('map')">
+      <span class="nav-icon">🗺</span> Mapa Empresas
+    </button>
   </nav>
   <div class="sidebar-bottom">
+    <button onclick="openGlobalSearch()" style="width:100%;margin-bottom:10px;padding:8px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text3);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:8px;font-family:Syne,sans-serif">
+      <span>🔍</span>
+      <span style="flex:1;text-align:left">Buscar empresa...</span>
+      <kbd style="font-size:9px;padding:2px 5px;background:rgba(255,255,255,0.07);border-radius:4px;color:var(--text3)">⌘K</kbd>
+    </button>
     <div class="api-key-mini">
       <div class="api-key-label">🔑 API Key Claude</div>
       <input type="password" class="api-key-input" id="apiKey" placeholder="sk-ant-api03-..." oninput="saveApiKey()" />
@@ -1927,6 +1995,26 @@ Puertos y terminales marítimas</textarea>
   </div>
 </div>
 
+<!-- ═══ GLOBAL SEARCH OVERLAY ═══ -->
+<div id="global-search-overlay" style="display:none;position:fixed;inset:0;background:rgba(4,8,15,0.85);z-index:99999;display:none;align-items:flex-start;justify-content:center;padding-top:80px;backdrop-filter:blur(8px)" onclick="closeGlobalSearch(event)">
+  <div style="width:580px;background:#0a1628;border:1px solid rgba(0,212,160,0.3);border-radius:16px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,0.7)" onclick="event.stopPropagation()">
+    <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.06)">
+      <span style="font-size:18px;color:#00D4A0">🔍</span>
+      <input id="global-search-input" type="text" placeholder="Buscar cualquier empresa prospectada por el equipo..."
+        style="flex:1;background:none;border:none;outline:none;color:#fff;font-size:15px;font-family:Syne,sans-serif"
+        oninput="runGlobalSearch(this.value)" onkeydown="globalSearchKeyDown(event)">
+      <kbd onclick="closeGlobalSearch()" style="font-size:11px;padding:3px 7px;background:rgba(255,255,255,0.07);border-radius:6px;color:var(--text3);cursor:pointer">ESC</kbd>
+    </div>
+    <div id="global-search-results" style="max-height:420px;overflow-y:auto;padding:8px"></div>
+    <div style="padding:8px 18px;border-top:1px solid rgba(255,255,255,0.04);display:flex;gap:16px;font-size:10px;color:#3A6A85">
+      <span>↑↓ navegar</span>
+      <span>↵ abrir</span>
+      <span>ESC cerrar</span>
+      <span style="margin-left:auto">⌘K desde cualquier lugar</span>
+    </div>
+  </div>
+</div>
+
 <!-- TOASTS -->
 <div class="toast-container" id="toast-container"></div>
 
@@ -1975,6 +2063,7 @@ const PAGE_META = {
   pipeline:  ['🐺 Pipeline', 'Todas las empresas en tu radar'],
   auto:      ['🌙 Modo Automático', 'MR. WOLF_ trabaja mientras duermes'],
   pitch:     ['🎯 Presentación Adhoc', 'Genera una propuesta personalizada lista para llevar al cliente'],
+  map:       ['🗺 Mapa de Empresas', 'Todas las empresas prospectadas por el equipo — sin duplicados'],
 };
 
 let currentAnalysis = null;
@@ -2036,13 +2125,14 @@ function showPage(p) {
   // Ocultar banner de presentación al cambiar de sección
   var sb = document.getElementById('slides-sticky-bar');
   if (sb) sb.style.display = 'none';
-  const idx = {dashboard:0,discover:1,analyze:2,pipeline:3,auto:4,pitch:5}[p];
+  const idx = {dashboard:0,discover:1,analyze:2,pipeline:3,auto:4,pitch:5,map:6}[p];
   document.querySelectorAll('.nav-item')[idx].classList.add('active');
   const [title, sub] = PAGE_META[p];
   document.getElementById('topbar-title').textContent = title;
   document.getElementById('topbar-sub').textContent = sub;
   if (p === 'pipeline') renderPipeline();
   if (p === 'dashboard') updateDashboard();
+  if (p === 'map') renderCompanyMap();
 }
 
 function scoreColor(s) {
@@ -6116,6 +6206,37 @@ window.addEventListener('load', async function() {
 });
 
 </script></script>
+<!-- ═══ MAPA DE EMPRESAS ═══ -->
+<div id="page-map" class="page" style="display:none">
+  <!-- Search + filters bar -->
+  <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center">
+    <input id="map-search" type="text" placeholder="🔍 Buscar por nombre..." oninput="renderCompanyMap()"
+      style="flex:1;min-width:200px;padding:9px 14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:#fff;font-size:13px;font-family:Syne,sans-serif">
+    <select id="map-sector" onchange="renderCompanyMap()" style="padding:9px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:#fff;font-size:12px;font-family:Syne,sans-serif">
+      <option value="">Todos los sectores</option>
+    </select>
+    <select id="map-owner" onchange="renderCompanyMap()" style="padding:9px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:#fff;font-size:12px;font-family:Syne,sans-serif">
+      <option value="">Todo el equipo</option>
+    </select>
+    <select id="map-status" onchange="renderCompanyMap()" style="padding:9px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:#fff;font-size:12px;font-family:Syne,sans-serif">
+      <option value="">Todos los estados</option>
+      <option value="descubierta">Descubierta</option>
+      <option value="analizada">Analizada</option>
+      <option value="contactada">Contactada</option>
+      <option value="respondio">Respondió</option>
+      <option value="reunion">Reunión fijada</option>
+      <option value="propuesta">Propuesta enviada</option>
+      <option value="negociacion">Negociación</option>
+      <option value="cerrado">Cerrado</option>
+      <option value="descartado">Descartado</option>
+    </select>
+    <div id="map-count" style="font-size:12px;color:var(--text3);white-space:nowrap"></div>
+  </div>
+
+  <!-- Sector groups -->
+  <div id="map-grid"></div>
+</div>
+
 <!-- ═══ TEAM CHAT ═══ -->
 <div id="team-chat-btn" onclick="toggleTeamChat()" title="Chat del equipo">
   💬
@@ -6245,6 +6366,229 @@ window.addEventListener('load', async function() {
 </div>
 
 <script>
+// ══════════════════════════════════════════════
+// MAPA DE EMPRESAS + GLOBAL SEARCH
+// ══════════════════════════════════════════════
+
+// ── MAPA DE EMPRESAS ─────────────────────────
+function renderCompanyMap() {
+  var pipeline = getPipeline();
+  var search = (document.getElementById('map-search') || {}).value || '';
+  search = search.toLowerCase().trim();
+  var sectorF = (document.getElementById('map-sector') || {}).value || '';
+  var ownerF = (document.getElementById('map-owner') || {}).value || '';
+  var statusF = (document.getElementById('map-status') || {}).value || '';
+
+  // Populate owner filter from pipeline data
+  var ownerSel = document.getElementById('map-owner');
+  if (ownerSel && ownerSel.options.length <= 1) {
+    var owners = [...new Set(pipeline.map(function(e){ return e._added_by || ''; }).filter(Boolean))];
+    owners.forEach(function(o) {
+      var opt = document.createElement('option');
+      opt.value = o; opt.textContent = o;
+      ownerSel.appendChild(opt);
+    });
+  }
+
+  // Populate sector filter
+  var sectorSel = document.getElementById('map-sector');
+  if (sectorSel && sectorSel.options.length <= 1) {
+    var sectors = [...new Set(pipeline.map(function(e){ return e.sector || ''; }).filter(Boolean))].sort();
+    sectors.forEach(function(s) {
+      var opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      sectorSel.appendChild(opt);
+    });
+  }
+
+  // Filter
+  var filtered = pipeline.filter(function(e) {
+    if (search && !(e.company||'').toLowerCase().includes(search)) return false;
+    if (sectorF && e.sector !== sectorF) return false;
+    if (ownerF && e._added_by !== ownerF) return false;
+    if (statusF && e.status !== statusF) return false;
+    return true;
+  });
+
+  var countEl = document.getElementById('map-count');
+  if (countEl) countEl.textContent = filtered.length + ' de ' + pipeline.length + ' empresas';
+
+  var grid = document.getElementById('map-grid');
+  if (!grid) return;
+
+  if (!filtered.length) {
+    grid.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#3A6A85"><div style="font-size:40px;margin-bottom:12px">🗺</div><div style="font-size:14px">Sin empresas con estos filtros</div></div>';
+    return;
+  }
+
+  // Group by sector
+  var bySector = {};
+  filtered.forEach(function(e) {
+    var s = e.sector || 'Sin sector';
+    if (!bySector[s]) bySector[s] = [];
+    bySector[s].push(e);
+  });
+
+  var statusMap = {
+    descubierta: { label: 'Descubierta', color: '#0099CC' },
+    analizada:   { label: 'Analizada ✓', color: '#00D4A0' },
+    contactada:  { label: 'Contactada',  color: '#F0C040' },
+    respondio:   { label: 'Respondió',   color: '#FF8C42' },
+    reunion:     { label: 'Reunión',      color: '#8A66FF' },
+    propuesta:   { label: 'Propuesta',   color: '#43D692' },
+    negociacion: { label: 'Negociación', color: '#FF8C42' },
+    cerrado:     { label: '🏆 Cerrado',  color: '#43D692' },
+    descartado:  { label: 'Descartado',  color: '#3A6A85' },
+    en_hubspot:  { label: 'HubSpot 🔶',  color: '#F0C040' },
+    borrador:    { label: 'En Gmail',    color: '#0099CC' },
+  };
+
+  grid.innerHTML = Object.keys(bySector).sort().map(function(sector) {
+    var companies = bySector[sector].sort(function(a,b){ return (b.score||0)-(a.score||0); });
+    var cardsHtml = companies.map(function(e) {
+      var col = scoreColor(e.score||5);
+      var sm = statusMap[e.status] || { label: e.status || 'Descubierta', color: '#3A6A85' };
+      var who = e._added_by || e.owner_name || '';
+      var hasNotes = e.notes && e.notes.length > 0;
+      var isOverdue = e.next_contact_date && new Date(e.next_contact_date) < new Date();
+      return '<div class="map-company-card" onclick="showPipelineModal(\'' + e.id + '\')" title="' + escHtml(e.company) + '">' +
+        '<div class="gsearch-score" style="background:' + col + '18;border:1px solid ' + col + '44;color:' + col + '">' + (e.score||'?') + '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:12px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(e.company) + '</div>' +
+          '<div style="font-size:10px;color:#3A6A85;margin-top:1px">' + escHtml(e.country||'') + (who ? ' · 👤 ' + escHtml(who) : '') + '</div>' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">' +
+          '<span style="font-size:9px;padding:2px 7px;background:' + sm.color + '18;border:1px solid ' + sm.color + '44;border-radius:10px;color:' + sm.color + ';white-space:nowrap">' + sm.label + '</span>' +
+          '<div style="display:flex;gap:4px">' +
+            (hasNotes ? '<span title="Tiene notas" style="font-size:10px">📝</span>' : '') +
+            (isOverdue ? '<span title="Seguimiento vencido" style="font-size:10px">⏰</span>' : '') +
+            (e.last_signal_check ? '<span title="Señales actualizadas" style="font-size:10px">🔭</span>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    return '<div class="map-sector-group">' +
+      '<div class="map-sector-label">' + escHtml(sector) + ' <span style="color:#00D4A0;font-size:10px">(' + companies.length + ')</span></div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">' + cardsHtml + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// ── GLOBAL SEARCH (Cmd+K) ─────────────────────
+var _gsearchSelected = -1;
+
+function openGlobalSearch() {
+  var overlay = document.getElementById('global-search-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'flex';
+  _gsearchSelected = -1;
+  var input = document.getElementById('global-search-input');
+  if (input) { input.value = ''; input.focus(); }
+  runGlobalSearch('');
+}
+
+function closeGlobalSearch(e) {
+  if (e && e.target !== document.getElementById('global-search-overlay')) return;
+  var overlay = document.getElementById('global-search-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function runGlobalSearch(query) {
+  var q = (query || '').toLowerCase().trim();
+  var pipeline = getPipeline();
+  var results = q.length === 0
+    ? pipeline.slice(0, 12) // show top 12 by score when empty
+    : pipeline.filter(function(e){ return (e.company||'').toLowerCase().includes(q) || (e.sector||'').toLowerCase().includes(q) || (e.country||'').toLowerCase().includes(q); });
+
+  results = results.sort(function(a,b){ return (b.score||0)-(a.score||0); }).slice(0, 15);
+
+  var container = document.getElementById('global-search-results');
+  if (!container) return;
+
+  if (!pipeline.length) {
+    container.innerHTML = '<div style="text-align:center;padding:30px;color:#3A6A85;font-size:12px">Pipeline vacío — analiza empresas primero</div>';
+    return;
+  }
+
+  if (!results.length) {
+    container.innerHTML = '<div style="text-align:center;padding:30px;color:#3A6A85;font-size:12px">Sin resultados para "' + escHtml(query) + '"</div>';
+    return;
+  }
+
+  var statusColors = {
+    descubierta:'#0099CC', analizada:'#00D4A0', contactada:'#F0C040',
+    respondio:'#FF8C42', reunion:'#8A66FF', cerrado:'#43D692', descartado:'#3A6A85',
+    propuesta:'#43D692', negociacion:'#FF8C42', en_hubspot:'#F0C040', borrador:'#0099CC'
+  };
+  var statusLabels = {
+    descubierta:'Descubierta', analizada:'Analizada ✓', contactada:'Contactada',
+    respondio:'Respondió', reunion:'Reunión', cerrado:'🏆 Cerrado', descartado:'Descartado',
+    propuesta:'Propuesta', negociacion:'Negociación', en_hubspot:'En HubSpot', borrador:'En Gmail'
+  };
+
+  _gsearchSelected = -1;
+  container.innerHTML = results.map(function(e, i) {
+    var col = scoreColor(e.score||5);
+    var sc = statusColors[e.status] || '#3A6A85';
+    var sl = statusLabels[e.status] || 'Descubierta';
+    var who = e._added_by || e.owner_name || '';
+    var highlight = q ? (e.company||'').replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi'), '<mark style="background:rgba(0,212,160,0.25);color:#00D4A0;border-radius:2px">$1</mark>') : escHtml(e.company);
+    return '<div class="gsearch-item" data-id="' + e.id + '" onclick="gsearchOpen(\'' + e.id + '\')">' +
+      '<div class="gsearch-score" style="background:' + col + '18;border:1px solid ' + col + '44;color:' + col + '">' + (e.score||'?') + '</div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:13px;color:#fff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + highlight + '</div>' +
+        '<div style="font-size:10px;color:#3A6A85;margin-top:2px">' + escHtml(e.sector||'') + (e.country ? ' · ' + escHtml(e.country) : '') + (who ? ' · 👤 ' + escHtml(who) : '') + '</div>' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">' +
+        '<span style="font-size:10px;padding:2px 8px;background:' + sc + '18;border:1px solid ' + sc + '44;border-radius:10px;color:' + sc + '">' + sl + '</span>' +
+        '<span style="font-size:10px;color:#3A6A85">' + ENCAJE_ICONS[e.encaje] + '</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function gsearchOpen(id) {
+  var overlay = document.getElementById('global-search-overlay');
+  if (overlay) overlay.style.display = 'none';
+  showPipelineModal(id);
+}
+
+function globalSearchKeyDown(e) {
+  var items = document.querySelectorAll('#global-search-results .gsearch-item');
+  if (e.key === 'Escape') { closeGlobalSearch({ target: document.getElementById('global-search-overlay') }); return; }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _gsearchSelected = Math.min(_gsearchSelected + 1, items.length - 1);
+    items.forEach(function(el, i){ el.classList.toggle('selected', i === _gsearchSelected); });
+    if (items[_gsearchSelected]) items[_gsearchSelected].scrollIntoView({ block: 'nearest' });
+  }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _gsearchSelected = Math.max(_gsearchSelected - 1, 0);
+    items.forEach(function(el, i){ el.classList.toggle('selected', i === _gsearchSelected); });
+    if (items[_gsearchSelected]) items[_gsearchSelected].scrollIntoView({ block: 'nearest' });
+  }
+  if (e.key === 'Enter' && _gsearchSelected >= 0 && items[_gsearchSelected]) {
+    gsearchOpen(items[_gsearchSelected].dataset.id);
+  }
+}
+
+// Global keyboard shortcut: Cmd+K or Ctrl+K opens search
+document.addEventListener('keydown', function(e) {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    openGlobalSearch();
+  }
+  // Close on Escape if overlay is open
+  if (e.key === 'Escape') {
+    var overlay = document.getElementById('global-search-overlay');
+    if (overlay && overlay.style.display === 'flex') {
+      overlay.style.display = 'none';
+    }
+  }
+});
+
 // ── TEAM CHAT ─────────────────────────────────
 var _teamChatOpen = false;
 var _teamChatPollInterval = null;
