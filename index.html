@@ -5744,6 +5744,10 @@ async function loadPipelineFromSupabase() {
     localStorage.setItem('mrwolf_pipeline', JSON.stringify(pipeline));
     if (typeof updateDashboard === 'function') updateDashboard();
     if (typeof renderPipeline === 'function') renderPipeline();
+    if (typeof renderCompanyMap === 'function') {
+      var mapPage = document.getElementById('page-map');
+      if (mapPage && mapPage.classList.contains('active')) renderCompanyMap();
+    }
   } catch(e) {
     console.warn('Supabase load failed, using local data:', e.message);
   }
@@ -5836,36 +5840,96 @@ function checkLiveDuplicate(value) {
 }
 
 async function checkConflict(companyName) {
+  // Check 1: local pipeline (catches Miguel's imported companies)
+  var pipeline = getPipeline();
+  var localMatch = pipeline.find(function(e) {
+    return (e.company||'').toLowerCase().trim() === companyName.toLowerCase().trim()
+      && (!_currentUser || (e._added_by_email && e._added_by_email !== _currentUser.email));
+  });
+
+  // Check 2: activity_log (catches recent in-app activity)
+  var activityMatch = null;
   try {
-    var since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    var since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(); // 60 days
     var { data } = await sb.from('activity_log')
       .select('*')
       .ilike('company_name', companyName)
       .neq('user_email', _currentUser ? _currentUser.email : '')
-      .in('action', ['analyzed', 'email_sent', 'status_changed', 'contacted'])
+      .in('action', ['analyzed', 'email_sent', 'status_changed', 'contacted', 'claimed'])
       .gte('created_at', since)
       .order('created_at', { ascending: false })
-      .limit(3);
-    
-    if (data && data.length > 0) {
-      var banner = document.getElementById('conflict-banner');
-      var msgs = data.map(function(a) {
-        var days = Math.floor((Date.now() - new Date(a.created_at)) / 86400000);
-        var timeStr = days === 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago';
-        var actionLabel = {
-          'analyzed': 'analyzed',
-          'email_sent': 'sent an email to',
-          'status_changed': 'updated status of',
-          'contacted': 'contacted'
-        }[a.action] || a.action;
-        return '<strong>' + a.user_name + '</strong> ' + actionLabel + ' <strong>' + companyName + '</strong> ' + timeStr;
-      });
-      banner.innerHTML = '⚠ ' + msgs.join(' · ');
-      banner.style.display = 'block';
-      setTimeout(function() { banner.style.display = 'none'; }, 8000);
-    }
+      .limit(1);
+    if (data && data.length > 0) activityMatch = data[0];
   } catch(e) {}
+
+  if (!localMatch && !activityMatch) return false; // no conflict
+
+  // Build conflict info
+  var who = localMatch ? (localMatch._added_by || 'un compañero') : activityMatch.user_name;
+  var when = '';
+  var what = '';
+
+  if (localMatch) {
+    var statusLabels = { descubierta:'descubierta', analizada:'analizada ✓', contactada:'contactada', respondio:'respondió', cerrado:'cerrada' };
+    what = 'descubierta/analizada';
+    var label = statusLabels[localMatch.status] || localMatch.status || 'en el pipeline';
+    what = 'en el pipeline (' + label + ')';
+  }
+  if (activityMatch) {
+    var days = Math.floor((Date.now() - new Date(activityMatch.created_at)) / 86400000);
+    when = days === 0 ? 'hoy' : days === 1 ? 'ayer' : 'hace ' + days + ' días';
+    what = { analyzed:'analizó', email_sent:'envió un email a', status_changed:'actualizó', contacted:'contactó', claimed:'reclamó' }[activityMatch.action] || 'trabajó';
+    what = what + ' esta empresa ' + when;
+  }
+
+  // Show blocking decision modal — returns a Promise that resolves true (continue) or false (abort)
+  return new Promise(function(resolve) {
+    var existingModal = document.getElementById('conflict-decision-modal');
+    if (existingModal) existingModal.remove();
+
+    var modal = document.createElement('div');
+    modal.id = 'conflict-decision-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(4,8,15,0.88);z-index:99998;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)';
+    modal.innerHTML =
+      '<div style="width:420px;background:#0a1628;border:1px solid rgba(240,192,64,0.4);border-radius:16px;padding:28px;box-shadow:0 30px 80px rgba(0,0,0,0.7)">' +
+        '<div style="font-size:32px;text-align:center;margin-bottom:12px">⚠</div>' +
+        '<div style="font-size:16px;font-weight:800;color:#fff;text-align:center;margin-bottom:8px">' + escHtml(companyName) + ' ya está siendo trabajada</div>' +
+        '<div style="font-size:13px;color:#a8ccd8;text-align:center;margin-bottom:6px">' +
+          '<strong style="color:#F0C040">' + escHtml(who) + '</strong> ' + escHtml(what) + '.' +
+        '</div>' +
+        (localMatch && localMatch.notes && localMatch.notes.length
+          ? '<div style="margin:12px 0;padding:10px 12px;background:rgba(255,255,255,0.03);border-left:2px solid rgba(0,212,160,0.3);border-radius:0 8px 8px 0;font-size:11px;color:var(--text2)">' +
+              '📝 Nota de ' + escHtml(localMatch.notes[localMatch.notes.length-1].author) + ': ' +
+              escHtml(localMatch.notes[localMatch.notes.length-1].text.substring(0, 100)) + (localMatch.notes[localMatch.notes.length-1].text.length > 100 ? '...' : '') +
+            '</div>'
+          : '') +
+        '<div style="font-size:12px;color:#3A6A85;text-align:center;margin-bottom:20px">¿Quieres continuar igualmente o ver el análisis existente?</div>' +
+        '<div style="display:flex;gap:10px">' +
+          '<button id="conflict-view-btn" style="flex:1;padding:11px;background:rgba(0,212,160,0.1);border:1px solid rgba(0,212,160,0.3);border-radius:10px;color:#00D4A0;font-size:12px;font-weight:700;cursor:pointer;font-family:Syne,sans-serif">👁 Ver análisis existente</button>' +
+          '<button id="conflict-abort-btn" style="padding:11px 16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text3);font-size:12px;cursor:pointer;font-family:Syne,sans-serif">Cancelar</button>' +
+          '<button id="conflict-continue-btn" style="padding:11px 16px;background:rgba(255,77,109,0.12);border:1px solid rgba(255,77,109,0.3);border-radius:10px;color:#ff4d6d;font-size:12px;font-weight:700;cursor:pointer;font-family:Syne,sans-serif">Continuar igual</button>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(modal);
+
+    document.getElementById('conflict-continue-btn').onclick = function() {
+      modal.remove();
+      resolve(false); // false = no conflict blocking (user chose to continue)
+    };
+    document.getElementById('conflict-abort-btn').onclick = function() {
+      modal.remove();
+      resolve(true); // true = abort the analysis
+    };
+    document.getElementById('conflict-view-btn').onclick = function() {
+      modal.remove();
+      if (localMatch) showPipelineModal(localMatch.id);
+      resolve(true); // abort analysis, show existing instead
+    };
+  });
 }
+
+
 
 // ── TEAM DASHBOARD ───────────────────────────
 async function loadTeamDashboard() {
@@ -6078,7 +6142,8 @@ if (_origRunAnalyze) {
   runAnalyze = async function() {
     var company = document.getElementById('a-company') ? document.getElementById('a-company').value.trim() : '';
     if (company) {
-      await checkConflict(company);
+      var shouldAbort = await checkConflict(company);
+      if (shouldAbort) return; // user chose to cancel or view existing
       await logActivity('analyzed', null, company, { sector: document.getElementById('a-sector') ? document.getElementById('a-sector').value : '' });
     }
     return _origRunAnalyze.apply(this, arguments);
