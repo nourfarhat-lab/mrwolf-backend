@@ -4025,6 +4025,129 @@ async function showOwnerProfile(email) {
     '</div>';
 }
 
+async function showMemberProfile(email) {
+  if (!email) return;
+  var user = (window._teamUsersByEmail && window._teamUsersByEmail[email]) || { name: email, avatar_color: '#00D4A0' };
+  var pipeline = getPipeline();
+
+  // All companies this person discovered/added
+  var memberCompanies = pipeline.filter(function(e) {
+    return e._added_by_email === email || e.owner_email === email;
+  }).sort(function(a,b){ return (b.score||0)-(a.score||0); });
+
+  var isYou = _currentUser && _currentUser.email === email;
+  var color = user.avatar_color || '#00D4A0';
+
+  document.getElementById('modal-title').innerHTML =
+    '<div style="display:flex;align-items:center;gap:10px">' +
+      '<div class="team-avatar" style="width:36px;height:36px;font-size:14px;background:' + color + '">' + (user.name||'?').charAt(0) + '</div>' +
+      '<div>' +
+        '<div style="font-size:15px;font-weight:700">' + escHtml(user.name) + (isYou ? ' <span style="color:#00D4A0;font-size:11px;font-weight:400">(tú)</span>' : '') + '</div>' +
+        '<div style="font-size:10px;color:#3A6A85">' + memberCompanies.length + ' empresas prospectadas</div>' +
+      '</div>' +
+    '</div>';
+
+  var body = document.getElementById('modal-body');
+  body.innerHTML = '<div style="color:#3A6A85;font-size:12px;padding:20px">Cargando...</div>';
+  document.getElementById('modal-overlay').classList.add('show');
+
+  // Fetch recent activity for this user
+  var activityHtml = '';
+  try {
+    var { data: activity } = await sb.from('activity_log')
+      .select('*').eq('user_email', email)
+      .order('created_at', { ascending: false }).limit(5);
+    if (activity && activity.length) {
+      var actionLabelsEs = { login:'entró', analyzed:'analizó', discovered:'descubrió',
+        email_sent:'envió email a', status_changed:'actualizó', claimed:'reclamó',
+        note_added:'añadió nota en', presentation_generated:'generó pitch para' };
+      activityHtml = '<div style="margin-bottom:16px;padding:12px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid rgba(255,255,255,0.05)">' +
+        '<div style="font-size:10px;color:#3A6A85;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">⚡ Actividad reciente</div>' +
+        activity.map(function(a) {
+          var mins = Math.floor((Date.now()-new Date(a.created_at))/60000);
+          var t = mins<60?mins+'m':Math.floor(mins/60)<24?Math.floor(mins/60)+'h':Math.floor(mins/1440)+'d';
+          return '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;border-bottom:1px solid rgba(255,255,255,0.04)">' +
+            '<span style="color:#a8ccd8">' + (actionLabelsEs[a.action]||a.action) + (a.company_name?' <strong style="color:#fff">'+escHtml(a.company_name)+'</strong>':'') + '</span>' +
+            '<span style="color:#3A6A85;flex-shrink:0;margin-left:8px">' + t + '</span></div>';
+        }).join('') +
+      '</div>';
+    }
+  } catch(e) {}
+
+  // Status map for chips
+  var statusColors = { descubierta:'#0099CC',analizada:'#00D4A0',contactada:'#F0C040',
+    respondio:'#FF8C42',reunion:'#8A66FF',propuesta:'#43D692',negociacion:'#FF8C42',
+    cerrado:'#43D692',descartado:'#3A6A85',en_hubspot:'#F0C040',borrador:'#0099CC' };
+  var statusLabels = { descubierta:'Descubierta',analizada:'Analizada ✓',contactada:'Contactada',
+    respondio:'Respondió',reunion:'Reunión',propuesta:'Propuesta',negociacion:'Negociación',
+    cerrado:'🏆 Cerrado',descartado:'Descartado',en_hubspot:'HubSpot',borrador:'En Gmail' };
+
+  function renderMemberCompanies(list) {
+    if (!list.length) return '<div style="text-align:center;padding:20px;color:#3A6A85;font-size:12px">Sin resultados</div>';
+    return list.map(function(c) {
+      var col = scoreColor(c.score||5);
+      var sc = statusColors[c.status]||'#3A6A85';
+      var sl = statusLabels[c.status]||'Descubierta';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:9px;margin-bottom:6px;cursor:pointer;transition:all 0.1s" ' +
+        'onclick="closeModal();setTimeout(function(){showPipelineModal(\''+c.id+'\')},150)" ' +
+        'onmouseover="this.style.background=\'rgba(0,212,160,0.05)\';this.style.borderColor=\'rgba(0,212,160,0.15)\'" ' +
+        'onmouseout="this.style.background=\'rgba(255,255,255,0.02)\';this.style.borderColor=\'rgba(255,255,255,0.05)\'">' +
+        '<div style="width:30px;height:30px;border-radius:7px;background:'+col+'18;border:1px solid '+col+'44;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:'+col+';flex-shrink:0">' + (c.score||'?') + '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:12px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(c.company) + '</div>' +
+          '<div style="font-size:10px;color:#3A6A85">' + escHtml(c.sector||'') + (c.country?' · '+escHtml(c.country):'') + '</div>' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">' +
+          '<span style="font-size:9px;padding:2px 7px;background:'+sc+'18;border:1px solid '+sc+'44;border-radius:10px;color:'+sc+'">' + sl + '</span>' +
+          (c.notes&&c.notes.length?'<span style="font-size:9px;color:#3A6A85">📝 '+c.notes.length+'</span>':'') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  body.innerHTML = activityHtml +
+    '<div style="margin-bottom:10px">' +
+      '<input type="text" id="member-company-search" placeholder="🔍 Buscar entre sus empresas..." ' +
+        'style="width:100%;padding:8px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:9px;color:#fff;font-size:12px;font-family:Syne,sans-serif;box-sizing:border-box" ' +
+        'oninput="filterMemberCompanies(this.value)">' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">' +
+      ['', 'analizada', 'contactada', 'respondio', 'cerrado'].map(function(s) {
+        return '<button onclick="filterMemberCompaniesByStatus(\'' + s + '\')" ' +
+          'style="padding:4px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:var(--text3);font-size:10px;cursor:pointer;font-family:Syne,sans-serif">' +
+          (s===''?'Todas':(statusLabels[s]||s)) + '</button>';
+      }).join('') +
+    '</div>' +
+    '<div id="member-companies-list" style="max-height:340px;overflow-y:auto">' +
+      renderMemberCompanies(memberCompanies) +
+    '</div>';
+
+  // Store for filtering
+  window._memberProfileCompanies = memberCompanies;
+  window._memberProfileRender = renderMemberCompanies;
+}
+
+function filterMemberCompanies(query) {
+  if (!window._memberProfileCompanies) return;
+  var q = (query||'').toLowerCase();
+  var filtered = window._memberProfileCompanies.filter(function(c) {
+    return (c.company||'').toLowerCase().includes(q) || (c.sector||'').toLowerCase().includes(q) || (c.country||'').toLowerCase().includes(q);
+  });
+  var el = document.getElementById('member-companies-list');
+  if (el) el.innerHTML = window._memberProfileRender(filtered);
+}
+
+function filterMemberCompaniesByStatus(status) {
+  if (!window._memberProfileCompanies) return;
+  var filtered = status === '' ? window._memberProfileCompanies
+    : window._memberProfileCompanies.filter(function(c){ return c.status === status; });
+  var el = document.getElementById('member-companies-list');
+  if (el) el.innerHTML = window._memberProfileRender(filtered);
+  // Also clear search
+  var searchEl = document.getElementById('member-company-search');
+  if (searchEl) searchEl.value = '';
+}
+
 function showPipelineModal(id) {
   const e = getPipeline().find(function(p){ return p.id === id; });
   if (!e) return;
@@ -6026,12 +6149,16 @@ async function loadTeamDashboard() {
         var color = u.avatar_color || '#00D4A0';
         var count = userCounts[u.email] || 0;
         var isYou = _currentUser && _currentUser.email === u.email;
-        return '<div class="team-roster-card">' +
+        return '<div class="team-roster-card" style="cursor:pointer;transition:all 0.15s" ' +
+          'onclick="showMemberProfile(\'' + u.email + '\')" ' +
+          'onmouseover="this.style.background=\'rgba(0,212,160,0.06)\';this.style.borderColor=\'rgba(0,212,160,0.2)\'" ' +
+          'onmouseout="this.style.background=\'\';this.style.borderColor=\'\'">' +
           '<div class="team-avatar" style="background:' + color + ';width:34px;height:34px;font-size:13px">' + initial + '</div>' +
-          '<div>' +
+          '<div style="flex:1">' +
             '<div class="team-roster-name">' + u.name + (isYou ? ' <span style="color:#00D4A0;font-weight:400">(tú)</span>' : '') + '</div>' +
             '<div class="team-roster-count">' + count + ' empresas</div>' +
           '</div>' +
+          '<div style="font-size:10px;color:#3A6A85">→</div>' +
         '</div>';
       }).join('') || '<div style="color:#3A6A85;font-size:12px">No se pudo cargar el equipo.</div>';
     }
@@ -6272,7 +6399,7 @@ window.addEventListener('load', async function() {
 
 </script></script>
 <!-- ═══ MAPA DE EMPRESAS ═══ -->
-<div id="page-map" class="page" style="display:none">
+<div id="page-map" class="page">
   <!-- Search + filters bar -->
   <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center">
     <input id="map-search" type="text" placeholder="🔍 Buscar por nombre..." oninput="renderCompanyMap()"
@@ -6962,3 +7089,4 @@ function importWelcome(input) {
 </script>
 
 </body></html>
+
