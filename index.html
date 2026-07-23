@@ -4172,17 +4172,39 @@ async function checkSignals(id) {
   if (resultEl) resultEl.innerHTML = '<div style="color:#3A6A85;font-size:11px;animation:pulse 1s infinite">Buscando noticias, contrataciones ESG, nuevos proyectos...</div>';
 
   try {
-    var prompt = 'Busca información RECIENTE (últimos 6 meses) sobre la empresa "' + e.company + '" (' + (e.sector||'') + ', ' + (e.country||'') + ').\n' +
-      'Analiza específicamente:\n' +
-      '1. Nuevas iniciativas ESG, sostenibilidad o biodiversidad marina\n' +
-      '2. Proyectos costeros o marinos anunciados\n' +
-      '3. Cambios en liderazgo relevantes (nuevos directores de sostenibilidad, CSO, etc.)\n' +
-      '4. Financiación, expansiones o nuevas regulaciones que les afecten\n' +
-      '5. Cualquier señal de mayor receptividad a propuestas de regeneración marina\n\n' +
-      'Contexto actual: Score de encaje con Ocean Ecostructures = ' + (e.score||'?') + '/10. Propuesta original: ' + (e.propuesta||'no analizada') + '.\n\n' +
-      'Responde en JSON: {"summary":"resumen ejecutivo de las señales encontradas en 2-3 frases","suggested_score":8,"reason":"por qué el score debería cambiar o mantenerse","signals":["señal 1","señal 2"],"no_news":false}';
+    var prompt = 'Search for RECENT news (last 6 months) about the company "' + e.company + '" (' + (e.sector||'') + ', ' + (e.country||'') + ').\n\n' +
+      'Look specifically for:\n' +
+      '- New ESG, sustainability or marine biodiversity initiatives\n' +
+      '- Coastal or marine projects announced\n' +
+      '- New sustainability leadership hires (CSO, sustainability director, etc.)\n' +
+      '- Funding events, expansions or new regulations affecting them\n' +
+      '- Any signal of receptivity to marine regeneration proposals\n\n' +
+      'Current context: Fit score with Ocean Ecostructures = ' + (e.score||'?') + '/10. Original proposal: ' + (e.propuesta||'not analyzed') + '.\n\n' +
+      'CRITICAL: Respond ONLY with valid JSON, no markdown, no explanation, no preamble:\n' +
+      '{"summary":"2-3 sentence executive summary of signals found","suggested_score":' + (e.score||5) + ',"reason":"why score should change or stay","signals":["signal 1","signal 2","signal 3"],"no_news":false}';
 
-    var result = await callClaudeWithSearch(prompt, 1500);
+    // Use a direct API call without SYSTEM_PROMPT to avoid prose contamination
+    var apiKey = document.getElementById('apiKey') ? document.getElementById('apiKey').value.trim() : '';
+    if (!apiKey) throw new Error('API Key no configurada');
+
+    var signalRes = await fetch(location.protocol === 'file:' ? 'https://api.anthropic.com/v1/messages' : '/api/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+    var signalData = await signalRes.json();
+    if (signalData.error) throw new Error(signalData.error.message);
+
+    // Extract text from all content blocks, find the JSON object
+    var rawText = (signalData.content || []).map(function(b){ return b.text || ''; }).join('');
+    var jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON found in response');
+    var result = JSON.parse(jsonMatch[0]);
 
     var summary = result.summary || 'No se encontraron señales recientes relevantes.';
     var suggested = result.suggested_score || e.score;
