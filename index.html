@@ -836,8 +836,139 @@ body {
   font-size: 22px;
   box-shadow: 0 4px 20px rgba(0,212,160,0.4);
   transition: all 0.2s;
+  transform: translateY(-60px);
 }
-#wolf-chat-btn:hover { transform: scale(1.1); box-shadow: 0 6px 28px rgba(0,212,160,0.5); }
+#wolf-chat-btn:hover { transform: translateY(-60px) scale(1.1); box-shadow: 0 6px 28px rgba(0,212,160,0.5); }
+
+/* ── TEAM CHAT ── */
+#team-chat-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8A66FF, #FF4D6D);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 4px 20px rgba(138,102,255,0.4);
+  transition: all 0.2s;
+}
+#team-chat-btn:hover { transform: scale(1.1); box-shadow: 0 6px 28px rgba(138,102,255,0.5); }
+#team-chat-unread {
+  position: absolute;
+  top: -3px; right: -3px;
+  width: 18px; height: 18px;
+  background: #ff4d6d;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Syne', sans-serif;
+}
+#team-chat-panel {
+  position: fixed;
+  bottom: 86px;
+  right: 24px;
+  z-index: 9998;
+  width: 340px;
+  max-height: 500px;
+  background: #070f1a;
+  border: 1px solid rgba(138,102,255,0.4);
+  border-radius: 16px;
+  display: none;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+#team-chat-panel.open { display: flex; }
+#team-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(135deg,rgba(138,102,255,0.15),rgba(255,77,109,0.1));
+  border-bottom: 1px solid rgba(138,102,255,0.2);
+}
+#team-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 280px;
+}
+.tchat-msg {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.tchat-msg.mine { flex-direction: row-reverse; }
+.tchat-avatar {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800;
+  flex-shrink: 0;
+  color: #04080F;
+}
+.tchat-bubble {
+  max-width: 220px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.tchat-bubble.theirs {
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  border-radius: 4px 12px 12px 12px;
+}
+.tchat-bubble.mine-bubble {
+  background: linear-gradient(135deg,rgba(138,102,255,0.25),rgba(255,77,109,0.15));
+  color: #fff;
+  border-radius: 12px 4px 12px 12px;
+}
+.tchat-meta { font-size: 9px; color: #3A6A85; margin-top: 2px; }
+#team-chat-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+#team-chat-input {
+  flex: 1;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(138,102,255,0.25);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 12px;
+  font-family: 'Syne', sans-serif;
+  resize: none;
+}
+#team-chat-input:focus { border-color: rgba(138,102,255,0.5); outline: none; }
+#team-chat-send {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8A66FF, #FF4D6D);
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  align-self: flex-end;
+  flex-shrink: 0;
+}
+
 #wolf-chat-badge {
   position: absolute;
   top: -3px; right: -3px;
@@ -1233,6 +1364,24 @@ body {
           </div>
         </div>
       </div>
+
+      <!-- FOLLOW-UP REMINDERS -->
+      <div class="card" id="followup-card" style="margin-top:20px;display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-size:13px;font-weight:700;color:#fff">📅 Recordatorios de seguimiento</div>
+          <span id="followup-overdue-badge" style="display:none;padding:2px 8px;background:rgba(255,77,109,0.15);border:1px solid rgba(255,77,109,0.35);border-radius:12px;font-size:10px;color:#ff4d6d;font-weight:700"></span>
+        </div>
+        <div id="followup-list"></div>
+      </div>
+
+      <!-- CONVERSION FUNNEL (Priority 5) -->
+      <div class="card" style="margin-top:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-size:13px;font-weight:700;color:#fff">📊 Funnel de conversión</div>
+          <span style="font-size:10px;color:var(--text3)">Todo el pipeline del equipo</span>
+        </div>
+        <div id="conversion-funnel" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px"></div>
+      </div>
       </div>
       <!-- ═══ TEAM DASHBOARD VIEW ═══ -->
       <div id="dashboard-view-team" style="display:none">
@@ -1500,7 +1649,13 @@ body {
 
     <!-- ═══ PIPELINE ═══ -->
     <div class="page" id="page-pipeline">
-      <div class="section-title">🐺 Pipeline de prospección</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div class="section-title" style="margin-bottom:0">🐺 Pipeline de prospección</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="stale-badge" style="display:none;padding:3px 10px;background:rgba(240,192,64,0.12);border:1px solid rgba(240,192,64,0.3);border-radius:12px;font-size:10px;color:#F0C040;font-weight:700"></span>
+          <button id="stale-btn" onclick="reanalyzeStale()" style="display:none;padding:6px 14px;background:rgba(240,192,64,0.1);border:1px solid rgba(240,192,64,0.3);border-radius:8px;color:#F0C040;font-size:11px;font-weight:700;cursor:pointer;font-family:Syne,sans-serif">🔄 Re-analizar antiguas</button>
+        </div>
+      </div>
       <div class="section-sub">Todas las empresas descubiertas y analizadas por MR. WOLF_. Memoria persistente en tu navegador.</div>
 
       <div class="pipeline-filters">
@@ -2000,11 +2155,71 @@ function updateDashboard() {
       </div>`;
     }).join('');
   }
+  // ── FOLLOW-UP REMINDERS ──────────────────────
+  var today = new Date(); today.setHours(0,0,0,0);
+  var followups = pipeline.filter(function(e){ return e.next_contact_date; }).sort(function(a,b){ return new Date(a.next_contact_date)-new Date(b.next_contact_date); });
+  var overdue = followups.filter(function(e){ return new Date(e.next_contact_date) < today; });
+  var upcoming = followups.filter(function(e){ return new Date(e.next_contact_date) >= today; }).slice(0,5);
+  var followupCard = document.getElementById('followup-card');
+  var followupList = document.getElementById('followup-list');
+  var overdueBadge = document.getElementById('followup-overdue-badge');
+  if (followupCard && (followups.length > 0)) {
+    followupCard.style.display = 'block';
+    if (overdueBadge) {
+      overdueBadge.style.display = overdue.length ? 'inline-block' : 'none';
+      overdueBadge.textContent = overdue.length + ' vencido' + (overdue.length > 1 ? 's' : '');
+    }
+    if (followupList) {
+      followupList.innerHTML = [...overdue.slice(0,3), ...upcoming].map(function(e) {
+        var d = new Date(e.next_contact_date);
+        var isOverdue = d < today;
+        var daysDiff = Math.round((d - today) / 86400000);
+        var dayLabel = isOverdue ? Math.abs(daysDiff) + 'd vencido' : daysDiff === 0 ? 'Hoy' : 'En ' + daysDiff + 'd';
+        var col = isOverdue ? '#ff4d6d' : daysDiff <= 2 ? '#F0C040' : '#00D4A0';
+        return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer" onclick="showPipelineModal(\'' + e.id + '\')">' +
+          '<div style="min-width:70px;text-align:center;padding:4px 8px;background:' + col + '18;border:1px solid ' + col + '44;border-radius:6px;font-size:10px;font-weight:700;color:' + col + '">' + dayLabel + '</div>' +
+          '<div style="flex:1"><div style="font-size:12px;color:#fff;font-weight:600">' + escHtml(e.company) + '</div>' +
+            '<div style="font-size:10px;color:var(--text3)">' + d.toLocaleDateString('es-ES') + ' · ' + escHtml(e.status || 'descubierta') + '</div></div>' +
+          '<div style="font-size:11px;color:var(--text3)">→</div>' +
+        '</div>';
+      }).join('');
+    }
+  } else if (followupCard) {
+    followupCard.style.display = 'none';
+  }
+
+  // ── CONVERSION FUNNEL (Priority 5) ───────────
+  var funnelEl = document.getElementById('conversion-funnel');
+  if (funnelEl) {
+    var stages = [
+      { key: 'descubierta', label: 'Descubiertas', icon: '🔍', color: '#0099CC' },
+      { key: 'analizada',   label: 'Analizadas',   icon: '🧠', color: '#00D4A0' },
+      { key: 'contactada',  label: 'Contactadas',  icon: '✉',  color: '#F0C040' },
+      { key: 'respondio',   label: 'Respondieron', icon: '💬', color: '#FF8C42' },
+      { key: 'cerrado',     label: 'Cerradas',     icon: '🏆', color: '#43D692' }
+    ];
+    var stageCounts = {};
+    stages.forEach(function(s){ stageCounts[s.key] = 0; });
+    stageCounts.descubierta = pipeline.length;
+    pipeline.forEach(function(e){ if (stageCounts[e.status] !== undefined) stageCounts[e.status]++; });
+    var maxCount = pipeline.length || 1;
+    funnelEl.innerHTML = stages.map(function(s) {
+      var count = stageCounts[s.key];
+      var pct = Math.round(count / maxCount * 100);
+      return '<div style="text-align:center;padding:12px 8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px">' +
+        '<div style="font-size:20px;margin-bottom:6px">' + s.icon + '</div>' +
+        '<div style="font-size:22px;font-weight:800;color:' + s.color + ';font-family:Space Mono,monospace;margin-bottom:2px">' + count + '</div>' +
+        '<div style="font-size:9px;color:var(--text3);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:6px">' + s.label + '</div>' +
+        '<div style="background:rgba(255,255,255,0.06);border-radius:4px;height:4px;overflow:hidden">' +
+          '<div style="height:100%;width:' + pct + '%;background:' + s.color + ';border-radius:4px;transition:width 0.5s"></div>' +
+        '</div>' +
+        '<div style="font-size:9px;color:' + s.color + ';margin-top:3px">' + pct + '%</div>' +
+      '</div>';
+    }).join('');
+  }
 }
 
-// ══════════════════════════════════════════════
-// CLAUDE API
-// ══════════════════════════════════════════════
+
 async function callClaude(userMsg, maxTokens) {
   const apiKey = document.getElementById('apiKey').value.trim();
   if (!apiKey) { alert('Introduce tu API key de Claude en el panel lateral.'); return null; }
@@ -3296,6 +3511,23 @@ function savePitchToPipeline() {
 function renderPipeline() {
   let pipeline = getPipeline();
 
+  // Stale companies check (>60 days, still 'descubierta')
+  var sixtyDaysAgo = Date.now() - 60 * 86400000;
+  var staleCompanies = pipeline.filter(function(e){ return e.status === 'descubierta' && e.date && new Date(e.date).getTime() < sixtyDaysAgo; });
+  var staleBadge = document.getElementById('stale-badge');
+  var staleBtn = document.getElementById('stale-btn');
+  if (staleBadge && staleBtn) {
+    if (staleCompanies.length > 0) {
+      staleBadge.style.display = 'inline-block';
+      staleBadge.textContent = staleCompanies.length + ' sin analizar +60 días';
+      staleBtn.style.display = 'inline-block';
+      staleBtn.textContent = '🔄 Re-analizar ' + staleCompanies.length + ' antiguas';
+    } else {
+      staleBadge.style.display = 'none';
+      staleBtn.style.display = 'none';
+    }
+  }
+
   // Populate sector filter
   const sectors = [...new Set(pipeline.map(e=>e.sector).filter(Boolean))];
   const sectorSel = document.getElementById('pipe-sector');
@@ -3414,6 +3646,40 @@ function renderPipeline() {
       </td>
     </tr>`;
   }).join('');
+}
+
+async function reanalyzeStale() {
+  var pipeline = getPipeline();
+  var sixtyDaysAgo = Date.now() - 60 * 86400000;
+  var stale = pipeline.filter(function(e){ return e.status === 'descubierta' && e.date && new Date(e.date).getTime() < sixtyDaysAgo; });
+
+  if (!stale.length) { toast('Sin empresas antiguas para re-analizar'); return; }
+
+  var btn = document.getElementById('stale-btn');
+  if (btn) { btn.textContent = '⏳ Analizando 0/' + stale.length + '...'; btn.disabled = true; }
+
+  var done = 0;
+  for (var i = 0; i < stale.length && i < 10; i++) { // max 10 at a time
+    var company = stale[i];
+    try {
+      // Pre-fill the analyze form and trigger it silently
+      document.getElementById('a-company').value = company.company;
+      document.getElementById('a-sector').value = company.sector || '';
+      document.getElementById('a-country').value = company.country || '';
+      document.getElementById('a-extra').value = company.extra || '';
+      await runAnalyze();
+      done++;
+      if (btn) btn.textContent = '⏳ Analizando ' + done + '/' + Math.min(stale.length, 10) + '...';
+      await new Promise(function(r){ setTimeout(r, 2000); }); // rate limit pause
+    } catch(e) {
+      console.warn('Failed to reanalyze', company.company, e.message);
+    }
+  }
+
+  if (btn) { btn.textContent = '✅ ' + done + ' re-analizadas'; btn.disabled = false; }
+  toast('✅ ' + done + ' empresas re-analizadas');
+  renderPipeline();
+  updateDashboard();
 }
 
 async function claimCompany(id) {
@@ -3777,7 +4043,62 @@ function showPipelineModal(id) {
     prioHtml + angHtml + secHtml +
     (!hasAnalysis ? '<div style="font-size:11px;color:var(--text3);text-align:center;padding:8px;margin-bottom:8px;background:rgba(255,255,255,0.03);border-radius:8px">Esta empresa aún no tiene análisis completo</div>' : '') +
     pitchSummaryHtml + pitchBtn + analyzeBtn +
-    emailsHtml;
+    emailsHtml +
+
+    // ── SIGNALS RESCORE ──────────────────────────
+    '<div style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.06);padding-top:14px">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+        '<span style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase">🔭 Señales recientes</span>' +
+        '<button id="signal-btn-' + id + '" class="btn-secondary" style="padding:4px 12px;font-size:10px" onclick="checkSignals(\'' + id + '\')">🔍 Buscar señales</button>' +
+      '</div>' +
+      '<div id="signal-result-' + id + '" style="font-size:11px;color:var(--text2);line-height:1.6">' +
+        (e.last_signal_check
+          ? '<div style="padding:8px 10px;background:rgba(0,212,160,0.05);border:1px solid rgba(0,212,160,0.12);border-radius:8px">' +
+              '<div style="font-size:9px;color:#3A6A85;margin-bottom:4px">Última actualización: ' + new Date(e.last_signal_check).toLocaleDateString('es-ES') + '</div>' +
+              escHtml(e.last_signal_summary || '') +
+              (e.suggested_score && e.suggested_score !== e.score ? '<div style="margin-top:6px;color:#F0C040;font-size:10px">⚡ Score sugerido: ' + e.suggested_score + '/10 <button class="btn-secondary" style="padding:2px 8px;font-size:9px;margin-left:6px" onclick="applySignalScore(\'' + id + '\',' + e.suggested_score + ')">Aplicar</button></div>' : '') +
+            '</div>'
+          : '<span style="color:#3A6A85;font-size:10px">Sin búsqueda reciente. Pulsa "Buscar señales" para ver noticias, contrataciones ESG o nuevos proyectos.</span>') +
+      '</div>' +
+    '</div>' +
+
+    // ── FOLLOW-UP + NOTES ────────────────────────
+    '<div style="margin-top:14px;border-top:1px solid rgba(255,255,255,0.06);padding-top:14px">' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">' +
+        // Next contact date
+        '<div>' +
+          '<label style="font-size:10px;color:var(--text3);font-weight:700;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:5px">📅 Próximo contacto</label>' +
+          '<input type="date" id="modal-followup-' + id + '" value="' + (e.next_contact_date || '') + '"' +
+            ' style="width:100%;padding:7px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:12px;font-family:Syne,sans-serif"' +
+            ' onchange="saveFollowUp(\'' + id + '\',this.value)">' +
+          (e.next_contact_date ? '<div style="font-size:9px;color:' + (new Date(e.next_contact_date) < new Date() ? '#ff4d6d' : '#00D4A0') + ';margin-top:3px">' + (new Date(e.next_contact_date) < new Date() ? '⚠ Vencido' : '✓ Programado') + '</div>' : '') +
+        '</div>' +
+        // Last contacted
+        '<div>' +
+          '<label style="font-size:10px;color:var(--text3);font-weight:700;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:5px">📞 Último contacto</label>' +
+          '<div style="font-size:12px;color:var(--text2);padding:7px 10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:8px">' +
+            (e.last_contacted_at ? new Date(e.last_contacted_at).toLocaleDateString('es-ES') + ' · ' + escHtml(e.last_contacted_by || '') : '<span style="color:#3A6A85">Sin contacto aún</span>') +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      // Notes
+      '<label style="font-size:10px;color:var(--text3);font-weight:700;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:5px">📝 Notas del equipo</label>' +
+      '<div id="notes-history-' + id + '" style="max-height:120px;overflow-y:auto;margin-bottom:8px">' +
+        ((e.notes && e.notes.length)
+          ? e.notes.map(function(n) {
+              return '<div style="padding:6px 10px;background:rgba(255,255,255,0.03);border-left:2px solid rgba(0,212,160,0.3);border-radius:0 6px 6px 0;margin-bottom:5px">' +
+                '<div style="font-size:10px;color:#3A6A85;margin-bottom:2px">' + escHtml(n.author) + ' · ' + new Date(n.date).toLocaleDateString('es-ES') + '</div>' +
+                '<div style="font-size:11px;color:var(--text2);line-height:1.5">' + escHtml(n.text) + '</div>' +
+              '</div>';
+            }).join('')
+          : '<div style="font-size:11px;color:#3A6A85;padding:6px 0">Sin notas aún. Sé el primero en añadir contexto.</div>') +
+      '</div>' +
+      '<div style="display:flex;gap:8px">' +
+        '<textarea id="modal-note-' + id + '" placeholder="Añade una nota: contexto de la llamada, contacto identificado, próximos pasos..." ' +
+          'style="flex:1;padding:8px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:11px;font-family:Syne,sans-serif;resize:none;min-height:60px;line-height:1.5" rows="3"></textarea>' +
+        '<button onclick="saveNote(\'' + id + '\')" style="align-self:flex-end;padding:8px 14px;background:rgba(0,212,160,0.12);border:1px solid rgba(0,212,160,0.3);border-radius:8px;color:#00D4A0;font-size:11px;font-weight:700;cursor:pointer;font-family:Syne,sans-serif;white-space:nowrap">💾 Guardar</button>' +
+      '</div>' +
+    '</div>';
 
   document.getElementById('modal-overlay').classList.add('show');
 }
@@ -3790,6 +4111,123 @@ function escHtml(str) {
     .replace(/"/g,'&quot;')
     .replace(/'/g,'&#39;');
 }
+
+// ── NOTES ────────────────────────────────────
+function saveNote(id) {
+  var textarea = document.getElementById('modal-note-' + id);
+  if (!textarea) return;
+  var text = textarea.value.trim();
+  if (!text) return;
+
+  var pipeline = getPipeline();
+  var idx = pipeline.findIndex(function(e){ return e.id === id; });
+  if (idx === -1) return;
+
+  if (!pipeline[idx].notes) pipeline[idx].notes = [];
+  pipeline[idx].notes.push({
+    text: text,
+    author: _currentUser ? _currentUser.name : 'Unknown',
+    author_email: _currentUser ? _currentUser.email : '',
+    date: new Date().toISOString()
+  });
+
+  savePipeline(pipeline);
+  textarea.value = '';
+
+  // Refresh notes list in modal without closing it
+  var historyEl = document.getElementById('notes-history-' + id);
+  if (historyEl) {
+    historyEl.innerHTML = pipeline[idx].notes.map(function(n) {
+      return '<div style="padding:6px 10px;background:rgba(255,255,255,0.03);border-left:2px solid rgba(0,212,160,0.3);border-radius:0 6px 6px 0;margin-bottom:5px">' +
+        '<div style="font-size:10px;color:#3A6A85;margin-bottom:2px">' + escHtml(n.author) + ' · ' + new Date(n.date).toLocaleDateString('es-ES') + '</div>' +
+        '<div style="font-size:11px;color:var(--text2);line-height:1.5">' + escHtml(n.text) + '</div>' +
+      '</div>';
+    }).join('');
+  }
+  toast('📝 Nota guardada');
+  logActivity('note_added', id, pipeline[idx].company, {});
+}
+
+// ── FOLLOW-UP DATE ────────────────────────────
+function saveFollowUp(id, date) {
+  var pipeline = getPipeline();
+  var idx = pipeline.findIndex(function(e){ return e.id === id; });
+  if (idx === -1) return;
+  pipeline[idx].next_contact_date = date;
+  savePipeline(pipeline);
+  toast(date ? '📅 Recordatorio guardado para ' + new Date(date).toLocaleDateString('es-ES') : 'Recordatorio eliminado');
+  updateDashboard();
+}
+
+// ── SIGNAL RESCORE ────────────────────────────
+async function checkSignals(id) {
+  var pipeline = getPipeline();
+  var idx = pipeline.findIndex(function(e){ return e.id === id; });
+  if (idx === -1) return;
+  var e = pipeline[idx];
+
+  var btn = document.getElementById('signal-btn-' + id);
+  var resultEl = document.getElementById('signal-result-' + id);
+  if (btn) { btn.textContent = '⏳ Buscando...'; btn.disabled = true; }
+  if (resultEl) resultEl.innerHTML = '<div style="color:#3A6A85;font-size:11px;animation:pulse 1s infinite">Buscando noticias, contrataciones ESG, nuevos proyectos...</div>';
+
+  try {
+    var prompt = 'Busca información RECIENTE (últimos 6 meses) sobre la empresa "' + e.company + '" (' + (e.sector||'') + ', ' + (e.country||'') + ').\n' +
+      'Analiza específicamente:\n' +
+      '1. Nuevas iniciativas ESG, sostenibilidad o biodiversidad marina\n' +
+      '2. Proyectos costeros o marinos anunciados\n' +
+      '3. Cambios en liderazgo relevantes (nuevos directores de sostenibilidad, CSO, etc.)\n' +
+      '4. Financiación, expansiones o nuevas regulaciones que les afecten\n' +
+      '5. Cualquier señal de mayor receptividad a propuestas de regeneración marina\n\n' +
+      'Contexto actual: Score de encaje con Ocean Ecostructures = ' + (e.score||'?') + '/10. Propuesta original: ' + (e.propuesta||'no analizada') + '.\n\n' +
+      'Responde en JSON: {"summary":"resumen ejecutivo de las señales encontradas en 2-3 frases","suggested_score":8,"reason":"por qué el score debería cambiar o mantenerse","signals":["señal 1","señal 2"],"no_news":false}';
+
+    var result = await callClaudeWithSearch(prompt, 1500);
+
+    var summary = result.summary || 'No se encontraron señales recientes relevantes.';
+    var suggested = result.suggested_score || e.score;
+    var signals = result.signals || [];
+    var noNews = result.no_news === true;
+
+    // Save to pipeline
+    pipeline[idx].last_signal_check = new Date().toISOString();
+    pipeline[idx].last_signal_summary = summary;
+    pipeline[idx].last_signal_signals = signals;
+    if (suggested && suggested !== e.score) pipeline[idx].suggested_score = suggested;
+    savePipeline(pipeline);
+
+    if (resultEl) {
+      resultEl.innerHTML = noNews
+        ? '<div style="color:#3A6A85;font-size:11px">Sin noticias relevantes en los últimos 6 meses.</div>'
+        : '<div style="padding:10px;background:rgba(0,212,160,0.05);border:1px solid rgba(0,212,160,0.12);border-radius:8px">' +
+            '<div style="font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:8px">' + escHtml(summary) + '</div>' +
+            (signals.length ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">' + signals.map(function(s){ return '<span style="font-size:10px;padding:2px 8px;background:rgba(0,212,160,0.08);border-radius:4px;color:#00D4A0">✓ ' + escHtml(s) + '</span>'; }).join('') + '</div>' : '') +
+            (suggested !== e.score ? '<div style="font-size:10px;color:#F0C040">⚡ Score sugerido: <strong>' + suggested + '</strong>/10 (actual: ' + e.score + ') <button class="btn-secondary" style="padding:2px 8px;font-size:9px;margin-left:6px" onclick="applySignalScore(\'' + id + '\',' + suggested + ')">Aplicar nuevo score</button></div>' : '<div style="font-size:10px;color:#3A6A85">Score actual (' + e.score + '/10) sigue siendo correcto.</div>') +
+          '</div>';
+    }
+    toast('🔭 Señales actualizadas para ' + e.company);
+  } catch(err) {
+    if (resultEl) resultEl.innerHTML = '<div style="color:#ff4d6d;font-size:11px">Error buscando señales: ' + escHtml(err.message) + '</div>';
+    toast('Error buscando señales', 'error');
+  }
+
+  if (btn) { btn.textContent = '🔄 Actualizar'; btn.disabled = false; }
+}
+
+function applySignalScore(id, newScore) {
+  var pipeline = getPipeline();
+  var idx = pipeline.findIndex(function(e){ return e.id === id; });
+  if (idx === -1) return;
+  var oldScore = pipeline[idx].score;
+  pipeline[idx].score = newScore;
+  delete pipeline[idx].suggested_score;
+  savePipeline(pipeline);
+  toast('⚡ Score actualizado: ' + oldScore + ' → ' + newScore);
+  renderPipeline();
+  updateDashboard();
+}
+
+
 
 function copyModalEmailByIdx(i) {
   const c = (window._modalData && window._modalData.contactos) ? window._modalData.contactos[i] : null;
@@ -5146,6 +5584,9 @@ async function initApp() {
   // Mostrar resumen de "mientras no estabas" antes del welcome screen
   await showAwaySummary();
 
+  // Check team chat unread messages
+  await checkTeamChatUnread();
+
   // Mostrar pantalla de bienvenida/import si este usuario aún no ha importado su backup
   await showWelcomeIfEmpty();
 }
@@ -5362,7 +5803,7 @@ async function loadTeamDashboard() {
     var actionIcons = {
       login: '🔐', analyzed: '🧠', discovered: '🔍', email_sent: '📧',
       status_changed: '🔄', hubspot_created: '🔶', presentation_generated: '🎯',
-      contacted: '✉', claimed: '🙋', default: '⚡'
+      contacted: '✉', claimed: '🙋', note_added: '📝', default: '⚡'
     };
     
     container.innerHTML = (activity || []).map(function(a) {
@@ -5376,7 +5817,7 @@ async function loadTeamDashboard() {
         login: 'logged in', analyzed: 'analyzed', discovered: 'discovered',
         email_sent: 'sent email to', status_changed: 'updated',
         hubspot_created: 'prepared HubSpot deal for', presentation_generated: 'generated pitch for',
-        contacted: 'contacted', claimed: '🙋 claimed'
+        contacted: 'contacted', claimed: '🙋 claimed', note_added: '📝 added a note on'
       };
       var label = actionLabels[a.action] || a.action;
       
@@ -5653,6 +6094,32 @@ window.addEventListener('load', async function() {
 });
 
 </script></script>
+<!-- ═══ TEAM CHAT ═══ -->
+<div id="team-chat-btn" onclick="toggleTeamChat()" title="Chat del equipo">
+  💬
+  <div id="team-chat-unread"></div>
+</div>
+
+<div id="team-chat-panel">
+  <div id="team-chat-header">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#8A66FF,#FF4D6D);display:flex;align-items:center;justify-content:center;font-size:14px">💬</div>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#fff">Chat del Equipo</div>
+        <div style="font-size:10px;color:var(--text2)" id="team-chat-online">Ocean Ecostructures</div>
+      </div>
+    </div>
+    <button onclick="toggleTeamChat()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:4px">✕</button>
+  </div>
+  <div id="team-chat-messages">
+    <div style="text-align:center;padding:20px;color:#3A6A85;font-size:11px">Cargando mensajes del equipo...</div>
+  </div>
+  <div id="team-chat-input-row">
+    <textarea id="team-chat-input" rows="2" placeholder="Escribe un mensaje al equipo..." onkeydown="teamChatKeyDown(event)"></textarea>
+    <button id="team-chat-send" onclick="sendTeamMessage()">➤</button>
+  </div>
+</div>
+
 <!-- ═══ CHAT POPUP CLAUDE ═══ -->
 <div id="wolf-chat-btn" onclick="toggleWolfChat()" title="Chat con Claude">
   🐺
@@ -5756,7 +6223,156 @@ window.addEventListener('load', async function() {
 </div>
 
 <script>
-// ── RESUMEN "MIENTRAS NO ESTABAS" ────────────
+// ── TEAM CHAT ─────────────────────────────────
+var _teamChatOpen = false;
+var _teamChatPollInterval = null;
+var _teamChatLastSeen = null;
+var _teamChatMessages = [];
+
+function toggleTeamChat() {
+  _teamChatOpen = !_teamChatOpen;
+  var panel = document.getElementById('team-chat-panel');
+  if (!panel) return;
+  if (_teamChatOpen) {
+    panel.classList.add('open');
+    _teamChatLastSeen = new Date().toISOString();
+    var unread = document.getElementById('team-chat-unread');
+    if (unread) { unread.style.display = 'none'; unread.textContent = ''; }
+    loadTeamChat();
+    if (!_teamChatPollInterval) {
+      _teamChatPollInterval = setInterval(pollTeamChat, 30000);
+    }
+    setTimeout(function(){ var inp = document.getElementById('team-chat-input'); if(inp) inp.focus(); }, 100);
+  } else {
+    panel.classList.remove('open');
+  }
+}
+
+async function loadTeamChat() {
+  try {
+    var { data, error } = await sb.from('team_chat')
+      .select('*')
+      .order('created_at', { ascending: true })
+      .limit(50);
+    if (error) throw error;
+    _teamChatMessages = data || [];
+    renderTeamChatMessages();
+  } catch(e) {
+    var el = document.getElementById('team-chat-messages');
+    if (el) el.innerHTML = '<div style="text-align:center;padding:20px;color:#ff4d6d;font-size:11px">Error cargando mensajes: ' + e.message + '</div>';
+  }
+}
+
+async function pollTeamChat() {
+  if (!_teamChatOpen) return;
+  try {
+    var since = _teamChatMessages.length
+      ? _teamChatMessages[_teamChatMessages.length - 1].created_at
+      : new Date(Date.now() - 3600000).toISOString();
+    var { data } = await sb.from('team_chat')
+      .select('*')
+      .gt('created_at', since)
+      .order('created_at', { ascending: true });
+    if (data && data.length) {
+      var isNewFromOther = data.some(function(m){ return _currentUser && m.user_email !== _currentUser.email; });
+      _teamChatMessages = _teamChatMessages.concat(data);
+      renderTeamChatMessages();
+      if (isNewFromOther) {
+        var firstName = data.find(function(m){ return _currentUser && m.user_email !== _currentUser.email; });
+        if (firstName) toast('💬 ' + firstName.user_name + ': ' + firstName.message.substring(0, 40) + (firstName.message.length > 40 ? '...' : ''));
+      }
+    }
+  } catch(e) { /* silent poll failure */ }
+}
+
+function renderTeamChatMessages() {
+  var el = document.getElementById('team-chat-messages');
+  if (!el) return;
+
+  if (!_teamChatMessages.length) {
+    el.innerHTML = '<div style="text-align:center;padding:30px 20px;color:#3A6A85;font-size:11px">Sin mensajes aún.<br>¡Sé el primero en escribir al equipo! 👋</div>';
+    return;
+  }
+
+  el.innerHTML = _teamChatMessages.map(function(m) {
+    var isMe = _currentUser && m.user_email === _currentUser.email;
+    var mins = Math.floor((Date.now() - new Date(m.created_at)) / 60000);
+    var timeStr = mins < 1 ? 'ahora' : mins < 60 ? mins + 'm' : Math.floor(mins/60) + 'h';
+    return '<div class="tchat-msg' + (isMe ? ' mine' : '') + '">' +
+      '<div class="tchat-avatar" style="background:' + (m.avatar_color || '#00D4A0') + '">' + m.user_name.charAt(0) + '</div>' +
+      '<div>' +
+        '<div class="tchat-bubble ' + (isMe ? 'mine-bubble' : 'theirs') + '">' + escHtml(m.message) + '</div>' +
+        '<div class="tchat-meta ' + (isMe ? 'right' : '') + '">' + (isMe ? 'Tú' : m.user_name) + ' · ' + timeStr + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  // Scroll to bottom
+  el.scrollTop = el.scrollHeight;
+}
+
+async function sendTeamMessage() {
+  if (!_currentUser) return;
+  var input = document.getElementById('team-chat-input');
+  if (!input) return;
+  var text = input.value.trim();
+  if (!text) return;
+
+  var sendBtn = document.getElementById('team-chat-send');
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = '⏳'; }
+  input.value = '';
+
+  try {
+    var { error } = await sb.from('team_chat').insert({
+      user_email: _currentUser.email,
+      user_name: _currentUser.name,
+      avatar_color: _currentUser.avatar_color || '#00D4A0',
+      message: text
+    });
+    if (error) throw error;
+    // Add locally and re-render immediately
+    _teamChatMessages.push({
+      user_email: _currentUser.email,
+      user_name: _currentUser.name,
+      avatar_color: _currentUser.avatar_color || '#00D4A0',
+      message: text,
+      created_at: new Date().toISOString()
+    });
+    renderTeamChatMessages();
+  } catch(e) {
+    toast('Error enviando mensaje: ' + e.message, 'error');
+    input.value = text; // restore on error
+  }
+
+  if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '➤'; }
+}
+
+function teamChatKeyDown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendTeamMessage();
+  }
+}
+
+// Check for new team chat messages on login (for unread badge)
+async function checkTeamChatUnread() {
+  if (!_currentUser) return;
+  try {
+    var lastSeenKey = 'mrwolf_chat_seen_' + _currentUser.email;
+    var lastSeen = localStorage.getItem(lastSeenKey) || new Date(Date.now() - 86400000).toISOString();
+    var { data } = await sb.from('team_chat')
+      .select('id', { count: 'exact' })
+      .neq('user_email', _currentUser.email)
+      .gt('created_at', lastSeen);
+    if (data && data.length > 0) {
+      var badge = document.getElementById('team-chat-unread');
+      if (badge) { badge.style.display = 'flex'; badge.textContent = data.length > 9 ? '9+' : data.length; }
+    }
+    localStorage.setItem(lastSeenKey, new Date().toISOString());
+  } catch(e) { /* silent */ }
+}
+
+
 async function showAwaySummary() {
   if (!_currentUser) return;
   var lastSeenKey = 'mrwolf_last_seen_' + _currentUser.email;
