@@ -3744,10 +3744,10 @@ async function reanalyzeStale() {
   if (btn) { btn.textContent = '⏳ Analizando 0/' + stale.length + '...'; btn.disabled = true; }
 
   var done = 0;
-  for (var i = 0; i < stale.length && i < 10; i++) { // max 10 at a time
+  window._batchAnalyzing = true; // disable conflict check during batch
+  for (var i = 0; i < stale.length && i < 10; i++) {
     var company = stale[i];
     try {
-      // Pre-fill the analyze form and trigger it silently
       document.getElementById('a-company').value = company.company;
       document.getElementById('a-sector').value = company.sector || '';
       document.getElementById('a-country').value = company.country || '';
@@ -3755,11 +3755,12 @@ async function reanalyzeStale() {
       await runAnalyze();
       done++;
       if (btn) btn.textContent = '⏳ Analizando ' + done + '/' + Math.min(stale.length, 10) + '...';
-      await new Promise(function(r){ setTimeout(r, 2000); }); // rate limit pause
+      await new Promise(function(r){ setTimeout(r, 2000); });
     } catch(e) {
       console.warn('Failed to reanalyze', company.company, e.message);
     }
   }
+  window._batchAnalyzing = false; // re-enable conflict check
 
   if (btn) { btn.textContent = '✅ ' + done + ' re-analizadas'; btn.disabled = false; }
   toast('✅ ' + done + ' empresas re-analizadas');
@@ -6263,9 +6264,9 @@ var _origRunAnalyze = typeof runAnalyze === 'function' ? runAnalyze : null;
 if (_origRunAnalyze) {
   runAnalyze = async function() {
     var company = document.getElementById('a-company') ? document.getElementById('a-company').value.trim() : '';
-    if (company) {
+    if (company && !window._batchAnalyzing) {
       var shouldAbort = await checkConflict(company);
-      if (shouldAbort) return; // user chose to cancel or view existing
+      if (shouldAbort) return;
       await logActivity('analyzed', null, company, { sector: document.getElementById('a-sector') ? document.getElementById('a-sector').value : '' });
     }
     return _origRunAnalyze.apply(this, arguments);
@@ -7084,4 +7085,3 @@ function importWelcome(input) {
 </script>
 
 </body></html>
-
